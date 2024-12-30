@@ -3,13 +3,6 @@ import openai
 import os
 from dotenv import load_dotenv
 
-try:
-    import uvicorn
-except ImportError:
-    os.system("pip install uvicorn")
-    import uvicorn
-
-
 # Cargar variables de entorno
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -23,27 +16,28 @@ async def root():
 @app.get("/test-openai/")
 async def test_openai():
     try:
-        # Llamada sincrónica a la API de OpenAI
-        response = openai.ChatCompletion.create(
-            model="gpt-4",  # Usa GPT-4 si tienes acceso
-            messages=[
+        # Agrega logs para depuración
+        print("Probando la integración con OpenAI...")
+        data = {
+            "model": "gpt-4",
+            "messages": [
                 {"role": "system", "content": "Eres Bruno, un asistente virtual."},
                 {"role": "user", "content": "¿Quién eres?"}
             ],
-            max_tokens=50
+            "max_tokens": 50
+        }
+        print("Datos enviados a OpenAI:", data)
+
+        # Solicitud a OpenAI
+        response = openai.ChatCompletion.create(
+            model=data["model"],
+            messages=data["messages"],
+            max_tokens=data["max_tokens"]
         )
+
+        # Log de la respuesta de OpenAI
+        print("Respuesta de OpenAI:", response)
         return {"response": response['choices'][0]['message']['content']}
     except Exception as e:
+        print(f"Error al conectar con OpenAI: {str(e)}")
         return {"error": str(e)}
-    
-    import uvicorn
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))  # Render asigna dinámicamente el puerto
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
-
-try:
-    import uvicorn
-except ImportError:
-    raise RuntimeError("uvicorn no está instalado en el entorno")
-
