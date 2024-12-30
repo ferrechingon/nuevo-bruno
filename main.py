@@ -35,3 +35,8 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))  # Render asigna dinámicamente el puerto
     uvicorn.run("main:app", host="0.0.0.0", port=port)
 
+try:
+    import uvicorn
+except ImportError:
+    raise RuntimeError("uvicorn no está instalado en el entorno")
+
