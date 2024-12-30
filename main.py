@@ -3,6 +3,13 @@ import openai
 import os
 from dotenv import load_dotenv
 
+try:
+    import uvicorn
+except ImportError:
+    os.system("pip install uvicorn")
+    import uvicorn
+
+
 # Cargar variables de entorno
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
