@@ -2,6 +2,7 @@ from fastapi import FastAPI
 import openai
 import os
 from dotenv import load_dotenv
+import uvicorn
 
 # Cargar variables de entorno
 load_dotenv()
@@ -41,3 +42,8 @@ async def test_openai():
     except Exception as e:
         print(f"Error al conectar con OpenAI: {str(e)}")
         return {"error": str(e)}
+
+# Inicia el servidor Uvicorn
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))  # Usa el puerto definido por Render o 8000 por defecto
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
