@@ -1,21 +1,13 @@
 from woocommerce_integration import buscar_productos
-import requests
-
 from dotenv import load_dotenv
 import os
+import openai
 
 # Cargar las variables desde el archivo .env
 load_dotenv()
 
 # Usar la clave de OpenAI desde el entorno
-api_key = os.getenv("OPENAI_API_KEY")
-
-
-url = "https://api.openai.com/v1/chat/completions"
-headers = {
-    "Authorization": f"Bearer {api_key}",
-    "Content-Type": "application/json"
-}
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Prompt completo para Bruno
 prompt_completo = """
@@ -37,77 +29,17 @@ productos_info = "\n".join([f"{p['name']} - ${p['price']}" for p in productos])
 # Preparar mensaje para Bruno
 mensaje_usuario = f"{consulta_usuario}\n\nProductos relacionados:\n{productos_info}"
 
-# Datos para OpenAI
-data = {
-    "model": "gpt-4",
-    "messages": [
-        {"role": "system", "content": prompt_completo},
-        {"role": "user", "content": mensaje_usuario}
-    ]
-}
-
 # Realizar la solicitud a OpenAI
-response = requests.post(url, headers=headers, json=data)
-
-# Procesar y mostrar la respuesta
-if response.status_code == 200:
-    print(response.json()["choices"][0]["message"]["content"])
-else:
-    print(f"Error: {response.status_code} - {response.text}")
-
-from skydropx_integration import cotizar_envio
-
-origen = {
-    "country_code": "MX",
-    "postal_code": "45239",  # Código postal en Guadalajara
-    "area_level1": "Jalisco",
-    "area_level2": "Zapopan",
-    "area_level3": "Miguel de la Madrird Hurtado",
-    "street1": "Avenida Prolongación López Mateos Sur 4460",
-    "reference": "A un lado de Steren",
-    "name": "Ferrechingón",
-    "company": "Ferrechingón",
-    "phone": "3343571098",
-    "email": "ventas@ferrechingon.com"
-}
-
-destino = {
-    "country_code": "MX",
-    "postal_code": "72000",  # Código postal en Zapopan
-    "area_level1": "Puebla",
-    "area_level2": "Heroica Puebla de Zaragoza",
-    "area_level3": "Centro",
-    "street1": "Calle 3 Sur 104",
-    "reference": "Frente al centro comercial",
-    "name": "Juan Camanei",
-    "company": "Panificadora La Flor SA de CV",
-    "phone": "2222327645",
-    "email": "cliente@ejemplo.com"
-}
-
-paquete = {
-    "length": 7,
-    "width": 29,
-    "height":25,
-    "weight": 3  # Peso razonable en kilogramos
-}
-
-
-
-
-
-
-
-
-
-
-
-# Mostrar tarifas disponibles
-tarifas = cotizar_envio(origen, destino, paquete)
-if tarifas:
-    for tarifa in tarifas:
-        print(f"{tarifa['provider_name']} - ${tarifa['cost']} MXN, entrega en {tarifa['days']} días.")
-else:
-    print("No se encontraron tarifas exitosas.")
-    print("Detalles de la respuesta completa:")
-    print(response.json())
+try:
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": prompt_completo},
+            {"role": "user", "content": mensaje_usuario}
+        ],
+        max_tokens=200
+    )
+    # Procesar y mostrar la respuesta
+    print(response['choices'][0]['message']['content'])
+except Exception as e:
+    print(f"Error: {str(e)}")
