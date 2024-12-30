@@ -1,13 +1,18 @@
 from woocommerce_integration import buscar_productos
+import requests
 from dotenv import load_dotenv
 import os
-import openai
 
 # Cargar las variables desde el archivo .env
 load_dotenv()
 
-# Usar la clave de OpenAI desde el entorno
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Configurar clave de API
+api_key = os.getenv("OPENAI_API_KEY")
+url = "https://api.openai.com/v1/chat/completions"
+headers = {
+    "Authorization": f"Bearer {api_key}",
+    "Content-Type": "application/json"
+}
 
 # Prompt completo para Bruno
 prompt_completo = """
@@ -29,17 +34,20 @@ productos_info = "\n".join([f"{p['name']} - ${p['price']}" for p in productos])
 # Preparar mensaje para Bruno
 mensaje_usuario = f"{consulta_usuario}\n\nProductos relacionados:\n{productos_info}"
 
-# Realizar la solicitud a OpenAI
-try:
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": prompt_completo},
-            {"role": "user", "content": mensaje_usuario}
-        ],
-        max_tokens=200
-    )
-    # Procesar y mostrar la respuesta
-    print(response['choices'][0]['message']['content'])
-except Exception as e:
-    print(f"Error: {str(e)}")
+# Datos para OpenAI
+data = {
+    "model": "gpt-4",
+    "messages": [
+        {"role": "system", "content": prompt_completo},
+        {"role": "user", "content": mensaje_usuario}
+    ]
+}
+
+# Hacer la solicitud
+response = requests.post(url, headers=headers, json=data)
+
+# Procesar y mostrar la respuesta
+if response.status_code == 200:
+    print(response.json()["choices"][0]["message"]["content"])
+else:
+    print(f"Error: {response.status_code} - {response.text}")
