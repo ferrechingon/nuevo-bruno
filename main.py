@@ -87,7 +87,11 @@ def generar_respuesta_bruno(texto_usuario):
 # Función para enviar respuesta a WhatsApp
 def enviar_respuesta_whatsapp(numero_cliente, respuesta):
     try:
-        url = "https://graph.facebook.com/v16.0/<WHATSAPP_PHONE_ID>/messages"  # Reemplaza <WHATSAPP_PHONE_ID>
+        whatsapp_phone_id = os.getenv("WHATSAPP_PHONE_ID")  # Extraer desde las variables de entorno
+        if not whatsapp_phone_id:
+            whatsapp_phone_id = "505166682685328"  # ID de teléfono explícito como fallback
+        
+        url = f"https://graph.facebook.com/v16.0/{whatsapp_phone_id}/messages"
         headers = {
             "Authorization": f"Bearer {os.getenv('WHATSAPP_API_TOKEN')}",
             "Content-Type": "application/json"
@@ -105,7 +109,6 @@ def enviar_respuesta_whatsapp(numero_cliente, respuesta):
             print("Error al enviar respuesta a WhatsApp:", response.text)
     except Exception as e:
         print("Error al enviar respuesta a WhatsApp:", e)
-
 
 
 if __name__ == "__main__":
