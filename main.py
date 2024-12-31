@@ -3,7 +3,7 @@ import requests
 import os
 from dotenv import load_dotenv
 from woocommerce_integration import buscar_productos
-from skydrop_integration import cotizar_envio
+from skydropx_integration import cotizar_envio
 
 # Cargar variables de entorno
 load_dotenv()
