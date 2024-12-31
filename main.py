@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 import requests
 import os
 from dotenv import load_dotenv
+from woocommerce_integration import buscar_productos
 
 # Cargar variables de entorno
 load_dotenv()
@@ -42,10 +43,15 @@ async def whatsapp_webhook(request: Request):
 
             print(f"Mensaje recibido: {texto} de {numero_cliente}")
 
-            # Generar respuesta con OpenAI
-            respuesta = generar_respuesta_bruno(texto)
+            # Buscar productos en WooCommerce
+            productos = buscar_productos(texto)
+            if productos:
+                productos_info = "\n".join([f"{p['name']} - ${p['price']}" for p in productos])
+                respuesta = f"Productos encontrados:\n{productos_info}"
+            else:
+                respuesta = generar_respuesta_bruno(texto)
 
-            # Enviar respuesta a WhatsApp
+            # Enviar respuesta al cliente
             enviar_respuesta_whatsapp(numero_cliente, respuesta)
         else:
             print("No hay mensajes en la solicitud.")
@@ -58,7 +64,7 @@ async def whatsapp_webhook(request: Request):
 def generar_respuesta_bruno(texto_usuario):
     try:
         prompt_completo = """
-        ### Persona y Prompt para Bruno - Asistente Virtual de Ferrechingón
+### Persona y Prompt para Bruno - Asistente Virtual de Ferrechingón
 
 ---
 
@@ -131,7 +137,7 @@ Bruno nunca envía a los clientes a la competencia. Si no puede resolver una con
 - **Respetuoso y transparente:** Si no puede resolver una duda, lo admite y ofrece alternativas.
 - **Experto en herramientas y soluciones ferreteras:** Bruno conoce el catálogo completo de productos y puede consultar fichas técnicas y manuales para resolver dudas.
 
-        """
+"""
         data = {
             "model": "gpt-4",
             "messages": [
@@ -146,9 +152,7 @@ Bruno nunca envía a los clientes a la competencia. Si no puede resolver una con
         }
         response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
         if response.status_code == 200:
-            respuesta = response.json()["choices"][0]["message"]["content"]
-            print("Respuesta generada por Bruno:", respuesta)
-            return respuesta
+            return response.json()["choices"][0]["message"]["content"]
         else:
             print("Error al llamar a OpenAI:", response.text)
             return "Lo siento, no puedo responder en este momento."
@@ -156,7 +160,6 @@ Bruno nunca envía a los clientes a la competencia. Si no puede resolver una con
         print("Error al generar respuesta:", e)
         return "Ocurrió un error al procesar tu consulta."
 
-# Función para enviar respuesta a WhatsApp
 def enviar_respuesta_whatsapp(numero_cliente, respuesta):
     try:
         whatsapp_phone_id = os.getenv('WHATSAPP_PHONE_ID')  # Obtener el ID del teléfono de las variables de entorno
