@@ -2,6 +2,8 @@ from fastapi import FastAPI, Request
 import requests
 import os
 from dotenv import load_dotenv
+from woocommerce_integration import buscar_productos
+from skydrop_integration import cotizar_envio
 
 # Cargar variables de entorno
 load_dotenv()
@@ -12,7 +14,6 @@ app = FastAPI()
 async def root():
     return {"message": "¡Hola, soy Bruno, listo para ayudarte!"}
 
-# Endpoint para verificar el webhook
 @app.get("/webhook/")
 async def verify_webhook(request: Request):
     """Verifica el webhook cuando Meta lo llama"""
@@ -26,7 +27,6 @@ async def verify_webhook(request: Request):
     else:
         return {"error": "No autorizado"}
 
-# Endpoint para manejar mensajes de WhatsApp
 @app.post("/webhook/")
 async def whatsapp_webhook(request: Request):
     """Procesa los mensajes entrantes de WhatsApp"""
@@ -42,10 +42,42 @@ async def whatsapp_webhook(request: Request):
 
             print(f"Mensaje recibido: {texto} de {numero_cliente}")
 
-            # Generar respuesta con OpenAI
-            respuesta = generar_respuesta_bruno(texto)
+            # Determinar intención del cliente
+            if "enviar a" in texto or "envío" in texto:
+                # Realizar cotización de envío
+                origen = {
+                    "country_code": "MX",
+                    "postal_code": "45239",
+                    "area_level1": "Jalisco",
+                    "area_level2": "Zapopan",
+                    "area_level3": "Miguel de la Madrid Hurtado",
+                    "street1": "Avenida Prolongación López Mateos Sur 4460",
+                }
+                destino = {
+                    "country_code": "MX",
+                    "postal_code": "64000",  # Extraer del mensaje en el futuro
+                }
+                paquete = {
+                    "length": 10,
+                    "width": 10,
+                    "height": 10,
+                    "weight": 1
+                }
+                tarifas = cotizar_envio(origen, destino, paquete)
+                if tarifas:
+                    respuesta = "\n".join([f"{t['provider_name']} - ${t['cost']} MXN, entrega en {t['days']} días." for t in tarifas])
+                else:
+                    respuesta = "Lo siento, no pude cotizar tu envío en este momento."
+            else:
+                # Buscar productos en WooCommerce
+                productos = buscar_productos(texto)
+                if productos:
+                    productos_info = "\n".join([f"{p['name']} - ${p['price']}" for p in productos])
+                    respuesta = f"Productos encontrados:\n{productos_info}"
+                else:
+                    respuesta = "No he encontrado ese producto en nuestro catálogo. ¿Te gustaría buscar algo más?"
 
-            # Enviar respuesta a WhatsApp
+            # Enviar respuesta al cliente
             enviar_respuesta_whatsapp(numero_cliente, respuesta)
         else:
             print("No hay mensajes en la solicitud.")
@@ -154,7 +186,6 @@ Bruno nunca envía a los clientes a la competencia. Si no puede resolver una con
         print("Error al generar respuesta:", e)
         return "Ocurrió un error al procesar tu consulta."
 
-# Función para enviar respuesta a WhatsApp
 def enviar_respuesta_whatsapp(numero_cliente, respuesta):
     try:
         whatsapp_phone_id = os.getenv("WHATSAPP_PHONE_ID")
@@ -176,7 +207,6 @@ def enviar_respuesta_whatsapp(numero_cliente, respuesta):
             print("Error al enviar respuesta a WhatsApp:", response.text)
     except Exception as e:
         print("Error al enviar respuesta a WhatsApp:", e)
-
 
 if __name__ == "__main__":
     import uvicorn
