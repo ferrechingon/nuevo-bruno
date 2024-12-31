@@ -33,8 +33,7 @@ def obtener_productos(pagina=1, por_pagina=100):
         print(f"Error en la conexión: {e}")
         return []
 
-# Función para buscar productos por palabras clave
-def buscar_productos(palabra_clave, pagina=1, por_pagina=100):
+def buscar_productos(palabra_clave, pagina=1, por_pagina=10):
     try:
         params = {
             "search": palabra_clave,
@@ -48,11 +47,11 @@ def buscar_productos(palabra_clave, pagina=1, por_pagina=100):
         )
         if response.status_code == 200:
             productos = response.json()
+            print(f"Productos encontrados: {productos}")  # Debug
             return productos
         else:
-            print(f"Error al buscar productos: {response.status_code}")
-            print(response.text)
+            print(f"Error al buscar productos: {response.status_code}, {response.text}")
             return []
     except Exception as e:
-        print(f"Error en la conexión: {e}")
+        print(f"Error en la conexión con WooCommerce: {e}")
         return []
