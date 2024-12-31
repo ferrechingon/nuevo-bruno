@@ -105,3 +105,10 @@ def enviar_respuesta_whatsapp(numero_cliente, respuesta):
             print("Error al enviar respuesta a WhatsApp:", response.text)
     except Exception as e:
         print("Error al enviar respuesta a WhatsApp:", e)
+
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))  # Render asigna dinámicamente el puerto
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
