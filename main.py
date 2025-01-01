@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from woocommerce_integration import buscar_productos, buscar_productos_paginados
 
+
 # Cargar variables de entorno
 load_dotenv()
 
@@ -28,18 +29,8 @@ async def whatsapp_webhook(request: Request):
 
             print(f"Mensaje recibido: {texto} de {numero_cliente}")
 
-            # Determinar la intención del mensaje
-            intencion = determinar_intencion(texto)
-            print(f"Intención detectada: {intencion}")
-
-            # Canalizar a la función adecuada según la intención
-            if intencion == "búsqueda de producto":
-                respuesta = manejar_busqueda_productos(texto)
-            elif intencion == "consulta de envío":
-                respuesta = manejar_cotizacion_envio(texto)
-            else:
-                # Predeterminado a conversación casual
-                respuesta = manejar_conversacion_casual(texto)
+            # Generar respuesta usando el modelo de lenguaje
+            respuesta = generar_respuesta_bruno(texto)
 
             # Enviar respuesta al cliente
             enviar_respuesta_whatsapp(numero_cliente, respuesta)
@@ -51,27 +42,18 @@ async def whatsapp_webhook(request: Request):
         print("Error en el webhook:", e)
         return {"status": "error", "error": str(e)}
 
-# Función para determinar intención del mensaje
-def determinar_intencion(texto_usuario):
+# Función para generar respuesta usando OpenAI
+def generar_respuesta_bruno(texto_usuario):
     try:
-        prompt = f"""
-Eres un modelo avanzado de lenguaje natural. Tu tarea es analizar el siguiente texto y determinar la intención del usuario. Las posibles intenciones son:
-- Búsqueda de producto
-- Consulta de envío
-- Conversación casual
-- Otra
+        prompt_completo = os.getenv("BRUNO_PROMPT")
 
-Texto: "{texto_usuario}"
-
-Devuelve solo la intención como una de las categorías anteriores.
-"""
         data = {
             "model": "gpt-4",
             "messages": [
-                {"role": "system", "content": "Eres un clasificador de intenciones de texto."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": prompt_completo},
+                {"role": "user", "content": texto_usuario}
             ],
-            "max_tokens": 10
+            "max_tokens": 300
         }
         headers = {
             "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
@@ -79,44 +61,16 @@ Devuelve solo la intención como una de las categorías anteriores.
         }
         response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
         if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"].strip().lower()
+            return response.json()["choices"][0]["message"]["content"]
         elif response.status_code == 429 or "insufficient_quota" in response.text:
             notificar_creditos_agotados()
-            return "conversación casual"
+            return "Lo siento, no puedo responder en este momento debido a un problema técnico."
         else:
-            print("Error al determinar intención:", response.text)
-            return "conversación casual"
+            print("Error al llamar a OpenAI:", response.text)
+            return "Lo siento, no puedo responder en este momento."
     except Exception as e:
-        print("Error al determinar intención:", e)
-        return "conversación casual"
-
-
-# Función para manejar búsquedas de productos
-def manejar_busqueda_productos(texto_usuario):
-    try:
-        productos = buscar_productos_paginados(texto_usuario)
-        if productos:
-            productos_info = "\n".join([
-                f"{p['name']} - ${p['price']} - [Ver producto]({p['permalink']})" for p in productos[:10]
-            ])
-            return (
-                "Buscando en el catálogo de productos de Ferrechingón\n\n"
-                f"Aquí tienes algunas opciones relacionadas con tu consulta:\n{productos_info}\n\n"
-                "¿Te gustaría más información sobre alguno de estos productos?"
-            )
-        else:
-            return "Lo siento, no encontré productos relacionados con tu consulta. ¿Quieres intentar con otra búsqueda?"
-    except Exception as e:
-        print("Error al manejar búsqueda de productos:", e)
-        return "Ocurrió un error al buscar productos. Por favor, intenta más tarde."
-
-# Función para manejar cotización de envíos
-def manejar_cotizacion_envio(texto_usuario):
-    return "Esta funcionalidad aún está en desarrollo. Próximamente podrás cotizar envíos aquí."
-
-# Función para manejar conversaciones casuales
-def manejar_conversacion_casual(texto_usuario):
-    return "¡Gracias por tu mensaje! ¿En qué más puedo ayudarte hoy?"
+        print("Error al generar respuesta:", e)
+        return "Ocurrió un error al procesar tu consulta. Por favor, intenta más tarde."
 
 # Función para enviar respuesta a WhatsApp
 def enviar_respuesta_whatsapp(numero_cliente, respuesta):
@@ -146,27 +100,10 @@ def notificar_creditos_agotados():
     try:
         mensaje = "Los créditos de OpenAI se han agotado. Por favor, recarga para evitar interrupciones."
 
-        # Enviar notificación por correo electrónico
-        #email_from = os.getenv("EMAIL_FROM")
-        #email_to = os.getenv("EMAIL_TO")
-        #email_password = os.getenv("EMAIL_PASSWORD")
-
-        #if email_from and email_to and email_password:
-        #    msg = MIMEText(mensaje)
-        #    msg['Subject'] = "Alerta: Créditos de OpenAI agotados"
-        #    msg['From'] = email_from
-        #    msg['To'] = email_to
-
-        #    with smtplib.SMTP('smtp.gmail.com', 587) as server:
-        #        server.starttls()
-        #        server.login(email_from, email_password)
-        #        server.sendmail(email_from, email_to, msg.as_string())
-        #        print("Notificación enviada por correo electrónico.")
 
         # Enviar notificación por WhatsApp
         whatsapp_phone_id = os.getenv('WHATSAPP_PHONE_ID')
-        #admin_phone_number = os.getenv('ADMIN_PHONE_NUMBER')
-        admin_phone_number = "5213333597991"
+        admin_phone_number = os.getenv('5213333597991')
 
         if whatsapp_phone_id and admin_phone_number:
             url = f"https://graph.facebook.com/v16.0/{whatsapp_phone_id}/messages"
@@ -188,7 +125,6 @@ def notificar_creditos_agotados():
     except Exception as e:
         print("Error al enviar notificación de créditos agotados:", e)
 
-  
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
