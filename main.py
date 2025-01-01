@@ -45,7 +45,9 @@ async def whatsapp_webhook(request: Request):
 # Función para generar respuesta usando OpenAI
 def generar_respuesta_bruno(texto_usuario):
     try:
-        prompt_completo = os.getenv("BRUNO_PROMPT")
+        # Leer el contenido del archivo de prompt
+        with open("bruno_prompt.txt", "r", encoding="utf-8") as file:
+            prompt_completo = file.read()
 
         data = {
             "model": "gpt-4",
