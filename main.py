@@ -80,12 +80,16 @@ Devuelve solo la intención como una de las categorías anteriores.
         response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
         if response.status_code == 200:
             return response.json()["choices"][0]["message"]["content"].strip().lower()
+        elif response.status_code == 429 or "insufficient_quota" in response.text:
+            notificar_creditos_agotados()
+            return "conversación casual"
         else:
             print("Error al determinar intención:", response.text)
             return "conversación casual"
     except Exception as e:
         print("Error al determinar intención:", e)
         return "conversación casual"
+
 
 # Función para manejar búsquedas de productos
 def manejar_busqueda_productos(texto_usuario):
@@ -137,6 +141,52 @@ def enviar_respuesta_whatsapp(numero_cliente, respuesta):
     except Exception as e:
         print("Error al enviar respuesta a WhatsApp:", e)
 
+# Función para notificar que los créditos de OpenAI están agotados
+def notificar_creditos_agotados():
+    try:
+        mensaje = "Los créditos de OpenAI se han agotado. Por favor, recarga para evitar interrupciones."
+
+        # Enviar notificación por correo electrónico
+        #email_from = os.getenv("EMAIL_FROM")
+        #email_to = os.getenv("EMAIL_TO")
+        #email_password = os.getenv("EMAIL_PASSWORD")
+
+        #if email_from and email_to and email_password:
+        #    msg = MIMEText(mensaje)
+        #    msg['Subject'] = "Alerta: Créditos de OpenAI agotados"
+        #    msg['From'] = email_from
+        #    msg['To'] = email_to
+
+        #    with smtplib.SMTP('smtp.gmail.com', 587) as server:
+        #        server.starttls()
+        #        server.login(email_from, email_password)
+        #        server.sendmail(email_from, email_to, msg.as_string())
+        #        print("Notificación enviada por correo electrónico.")
+
+        # Enviar notificación por WhatsApp
+        whatsapp_phone_id = os.getenv('WHATSAPP_PHONE_ID')
+        #admin_phone_number = os.getenv('ADMIN_PHONE_NUMBER')
+        admin_phone_number = "5213333597991"
+
+        if whatsapp_phone_id and admin_phone_number:
+            url = f"https://graph.facebook.com/v16.0/{whatsapp_phone_id}/messages"
+            headers = {
+                "Authorization": f"Bearer {os.getenv('WHATSAPP_API_TOKEN')}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": admin_phone_number,
+                "type": "text",
+                "text": {"body": mensaje}
+            }
+            response = requests.post(url, headers=headers, json=payload)
+            if response.status_code == 200:
+                print("Notificación enviada por WhatsApp.")
+            else:
+                print("Error al enviar notificación por WhatsApp:", response.text)
+    except Exception as e:
+        print("Error al enviar notificación de créditos agotados:", e)
 
   
 if __name__ == "__main__":
