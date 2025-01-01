@@ -37,10 +37,9 @@ async def whatsapp_webhook(request: Request):
                 respuesta = manejar_busqueda_productos(texto)
             elif intencion == "consulta de envío":
                 respuesta = manejar_cotizacion_envio(texto)
-            elif intencion == "conversación casual":
-                respuesta = manejar_conversacion_casual(texto)
             else:
-                respuesta = "Lo siento, no entendí tu solicitud. ¿Podrías darme más detalles?"
+                # Predeterminado a conversación casual
+                respuesta = manejar_conversacion_casual(texto)
 
             # Enviar respuesta al cliente
             enviar_respuesta_whatsapp(numero_cliente, respuesta)
@@ -83,10 +82,10 @@ Devuelve solo la intención como una de las categorías anteriores.
             return response.json()["choices"][0]["message"]["content"].strip().lower()
         else:
             print("Error al determinar intención:", response.text)
-            return "otra"
+            return "conversación casual"
     except Exception as e:
         print("Error al determinar intención:", e)
-        return "otra"
+        return "conversación casual"
 
 # Función para manejar búsquedas de productos
 def manejar_busqueda_productos(texto_usuario):
@@ -139,6 +138,7 @@ def enviar_respuesta_whatsapp(numero_cliente, respuesta):
         print("Error al enviar respuesta a WhatsApp:", e)
 
 
+  
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
