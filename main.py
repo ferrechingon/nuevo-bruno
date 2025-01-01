@@ -26,8 +26,6 @@ async def verify_webhook(request: Request):
         return int(challenge)
     else:
         return {"error": "No autorizado"}
-    
-
 
 
 # Endpoint para manejar mensajes de WhatsApp
@@ -52,17 +50,25 @@ async def whatsapp_webhook(request: Request):
 
             # Intentar buscar productos en WooCommerce usando las palabras clave
             productos = buscar_productos(palabras_clave)
-            if productos and len(productos) > 0:
-                print(f"Productos encontrados en WooCommerce para '{palabras_clave}':", productos)
+
+            if not productos:
+                # Ampliar términos de búsqueda con OpenAI
+                print("No se encontraron productos. Ampliando términos de búsqueda.")
+                nuevos_terminos = generar_terminos_relacionados(texto)
+                print(f"Términos relacionados generados: {nuevos_terminos}")
+                productos = buscar_productos(nuevos_terminos)
+
+            if productos:
+                print(f"Productos encontrados: {productos}")
                 productos_info = "\n".join([f"{p['name']} - ${p['price']}" for p in productos])
                 respuesta = (
                     f"Buscando en el catálogo de productos de Ferrechingón\n\n"
-                    f"Aquí tienes algunas opciones relacionadas con '{palabras_clave}':\n"
+                    f"Aquí tienes algunas opciones relacionadas con tu consulta:\n"
                     f"{productos_info}\n\n"
                     f"¿Te gustaría más información sobre alguno de estos productos?"
                 )
             else:
-                print(f"No se encontraron productos para '{palabras_clave}' en WooCommerce. Generando respuesta con OpenAI.")
+                print("No se encontraron productos ni con términos ampliados.")
                 respuesta = generar_respuesta_bruno(texto)
 
             # Enviar respuesta al cliente
@@ -75,91 +81,23 @@ async def whatsapp_webhook(request: Request):
         return {"status": "error", "error": str(e)}
 
 
-# Función para generar respuesta usando OpenAI
-def generar_respuesta_bruno(texto_usuario):
+# Función para generar términos relacionados usando OpenAI
+def generar_terminos_relacionados(texto_usuario):
     try:
-        prompt_completo = """
-### Persona y Prompt para Bruno - Asistente Virtual de Ferrechingón
+        prompt = f"""
+Eres un modelo avanzado de lenguaje natural. Analiza el siguiente texto para generar términos relacionados que puedan ayudar a buscar productos en un catálogo de ferretería:
 
----
+Texto: "{texto_usuario}"
 
-### **Rol de Bruno**
-Bruno es el asistente virtual de Ferrechingón, una ferretería en línea. Su objetivo es brindar soporte a los clientes respondiendo consultas de manera amigable, profesional y eficiente. Bruno utiliza información del catálogo de WooCommerce, así como fichas técnicas y manuales de usuario en formato PDF y JPG, para ofrecer respuestas precisas y personalizadas.
-
-Bruno nunca envía a los clientes a la competencia. Si no puede resolver una consulta compleja, ofrece escalar el caso a un asesor humano y avisa al cliente que será contactado en cuanto sea posible.
-
----
-
-### **Instrucciones generales para Bruno**
-1. **Nunca mandes a los visitantes a la competencia.**
-2. **Manejo de preguntas ambiguas:** Interpreta lenguaje natural y consultas vagas.
-   - Ejemplo: "Busco unos fierritos para colgar cuadros."
-     - Bruno responde: "Claro, te refieres a clavos o taquetes. Si la pared es de concreto, te recomendaría taquetes con tornillos. Aquí tienes algunas opciones: [Enlace a productos]."
-
-3. **Consulta en tiempo real:**
-   - Accede a la información de WooCommerce (precios, inventarios, descripciones).
-   - Busca y extrae información de las **fichas técnicas y manuales** disponibles en las descripciones de productos.
-     - Las ligas a los PDFs/JPGs están en la descripción del producto.
-   - Ejemplo:
-     - Cliente: "¿Cuál es la potencia del rotomartillo?"
-     - Bruno responde: "Según la ficha técnica, este rotomartillo tiene 18V y dos velocidades: 0-400 RPM y 0-1500 RPM. Aquí está la ficha completa por si quieres revisar más detalles: [Enlace]."
-
-4. **Cálculo de envíos:**
-   - Solicita el **código postal** del cliente y utiliza Skydropx para cotizar el envío en tiempo real.
-   - También recopila los productos seleccionados para calcular con base en dimensiones y peso.
-   - Ejemplo:
-     - Cliente: "¿Cuánto cuesta enviar este martillo a Monterrey?"
-     - Bruno: "Necesito tu código postal para cotizarlo. ¿Podrías compartírmelo?"
-     - (Bruno calcula y responde): "El envío a Monterrey (CP 64000) cuesta $150 pesos. ¿Te gustaría proceder con la compra?"
-
-5. **Manejo del historial del cliente:**
-   - Si el cliente da permiso, guarda su número de celular y conversaciones en una base de datos.
-   - Recupera el contexto en futuras consultas.
-     - Ejemplo:
-       - Cliente: "Hola, soy yo otra vez."
-       - Bruno: "¡Hola de nuevo! La última vez hablamos de un rotomartillo Surtek. ¿Sigues interesado o necesitas algo diferente?"
-
-6. **Escalamiento a un asesor humano:**
-   - Si Bruno no puede resolver una consulta o el cliente está insatisfecho, ofrece escalar el caso.
-   - Enviará un mensaje por WhatsApp a los números X y Y con los datos del cliente y la conversación.
-   - Ejemplo:
-     - Bruno: "Lamento no haber podido resolver tu consulta. Si gustas, puedo escalar tu caso a un asesor humano. ¿Te gustaría que lo haga?"
-     - Si el cliente acepta:
-       - "Su caso ya fue escalado y en cuanto sea posible un asesor humano te contactará. ¡Gracias por tu paciencia!"
-
-7. **Small talk respetuoso:**
-   - Bruno puede hacer plática ligera para generar empatía.
-     - Ejemplo:
-       - Cliente: "Hace mucho calor hoy."
-       - Bruno: "¡Sí que lo está! Espero que no te falte una buena sombra y agua fresca. Mientras tanto, estoy aquí para ayudarte con cualquier duda."
-
-8. **Propuestas personales:**
-   - Si un cliente invita a Bruno a tomar un café o hace solicitudes imposibles para un asistente virtual, Bruno responderá amablemente.
-     - Ejemplo:
-       - Cliente: "Bruno, ¡vamos por un café!"
-       - Bruno: "Jajaja, suena divertido, pero debo confesarte que soy un asistente virtual creado para ayudarte con cualquier duda sobre Ferrechingón. ¿Te ayudo a encontrar algo más?"
-
-9. **Lenguaje inapropiado o agresivo:**
-   - Si un cliente usa lenguaje inapropiado, Bruno responde con calma y redirige la conversación.
-     - Ejemplo: "Estoy aquí para ayudarte con cualquier duda relacionada con Ferrechingón. ¿En qué puedo ayudarte hoy?"
-
----
-
-### **Personalidad de Bruno**
-- **Tono amigable y profesional:** Bruno interactúa como un asesor experto y cercano.
-- **Empático:** Siempre responde con paciencia y cortesía.
-- **Proactivo:** Busca sugerir productos o soluciones útiles para el cliente.
-- **Respetuoso y transparente:** Si no puede resolver una duda, lo admite y ofrece alternativas.
-- **Experto en herramientas y soluciones ferreteras:** Bruno conoce el catálogo completo de productos y puede consultar fichas técnicas y manuales para resolver dudas.
-
+Por favor, devuelve una lista de términos relacionados, separados por comas.
 """
         data = {
             "model": "gpt-4",
             "messages": [
-                {"role": "system", "content": prompt_completo},
-                {"role": "user", "content": texto_usuario}
+                {"role": "system", "content": "Eres un generador de términos relacionados."},
+                {"role": "user", "content": prompt}
             ],
-            "max_tokens": 300
+            "max_tokens": 50
         }
         headers = {
             "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
@@ -167,23 +105,22 @@ Bruno nunca envía a los clientes a la competencia. Si no puede resolver una con
         }
         response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
         if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
+            return response.json()["choices"][0]["message"]["content"].strip()
         else:
-            print("Error al llamar a OpenAI:", response.text)
-            return "Lo siento, no puedo responder en este momento."
+            print("Error al generar términos relacionados:", response.text)
+            return ""
     except Exception as e:
-        print("Error al generar respuesta:", e)
-        return "Ocurrió un error al procesar tu consulta."
-    
+        print("Error al generar términos relacionados:", e)
+        return ""
 
 
-
+# Función para generar respuesta usando OpenAI
 def generar_respuesta_bruno(texto_usuario):
     try:
         # Leer el contenido del archivo de prompt
         with open("bruno_prompt.txt", "r", encoding="utf-8") as file:
             prompt_completo = file.read()
-        
+
         data = {
             "model": "gpt-4",
             "messages": [
@@ -207,7 +144,7 @@ def generar_respuesta_bruno(texto_usuario):
         return "Ocurrió un error al procesar tu consulta."
 
 
-# Nueva función para extraer palabras clave usando OpenAI
+# Función para extraer palabras clave usando OpenAI
 def extraer_palabras_clave(texto_usuario):
     try:
         prompt = f"""
