@@ -69,7 +69,11 @@ async def whatsapp_webhook(request: Request):
                 )
             else:
                 print("No se encontraron productos ni con términos ampliados.")
-                respuesta = generar_respuesta_bruno(texto)
+                respuesta = (
+                    "Lo siento, no encontré productos específicos para tu consulta en nuestro catálogo. "
+                    "Sin embargo, puedo ayudarte a explorar opciones generales o darte recomendaciones. "
+                    "¿Quieres que busquemos algo más o te oriente de otra manera?"
+                )
 
             # Enviar respuesta al cliente
             enviar_respuesta_whatsapp(numero_cliente, respuesta)
