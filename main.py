@@ -43,12 +43,19 @@ async def whatsapp_webhook(request: Request):
 
             print(f"Mensaje recibido: {texto} de {numero_cliente}")
 
-            # Buscar productos en WooCommerce
+            # Intentar buscar productos en WooCommerce
             productos = buscar_productos(texto)
-            if productos:
+            if productos and len(productos) > 0:
+                print(f"Productos encontrados en WooCommerce para '{texto}':", productos)
                 productos_info = "\n".join([f"{p['name']} - ${p['price']}" for p in productos])
-                respuesta = f"Productos encontrados:\n{productos_info}"
+                respuesta = (
+                    f"Buscando en el catálogo de productos de Ferrechingón\n\n"
+                    f"Aquí tienes algunas opciones relacionadas con '{texto}':\n"
+                    f"{productos_info}\n\n"
+                    f"¿Te gustaría más información sobre alguno de estos productos?"
+                )
             else:
+                print(f"No se encontraron productos para '{texto}' en WooCommerce. Generando respuesta con OpenAI.")
                 respuesta = generar_respuesta_bruno(texto)
 
             # Enviar respuesta al cliente
@@ -59,6 +66,7 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         print("Error en el webhook:", e)
         return {"status": "error", "error": str(e)}
+
 
 # Función para generar respuesta usando OpenAI
 def generar_respuesta_bruno(texto_usuario):
