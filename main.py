@@ -26,6 +26,9 @@ async def verify_webhook(request: Request):
         return int(challenge)
     else:
         return {"error": "No autorizado"}
+    
+
+
 
 # Endpoint para manejar mensajes de WhatsApp
 @app.post("/webhook/")
@@ -43,19 +46,23 @@ async def whatsapp_webhook(request: Request):
 
             print(f"Mensaje recibido: {texto} de {numero_cliente}")
 
-            # Intentar buscar productos en WooCommerce
-            productos = buscar_productos(texto)
+            # Generar palabras clave utilizando OpenAI
+            palabras_clave = extraer_palabras_clave(texto)
+            print(f"Palabras clave extraídas: {palabras_clave}")
+
+            # Intentar buscar productos en WooCommerce usando las palabras clave
+            productos = buscar_productos(palabras_clave)
             if productos and len(productos) > 0:
-                print(f"Productos encontrados en WooCommerce para '{texto}':", productos)
+                print(f"Productos encontrados en WooCommerce para '{palabras_clave}':", productos)
                 productos_info = "\n".join([f"{p['name']} - ${p['price']}" for p in productos])
                 respuesta = (
                     f"Buscando en el catálogo de productos de Ferrechingón\n\n"
-                    f"Aquí tienes algunas opciones relacionadas con '{texto}':\n"
+                    f"Aquí tienes algunas opciones relacionadas con '{palabras_clave}':\n"
                     f"{productos_info}\n\n"
                     f"¿Te gustaría más información sobre alguno de estos productos?"
                 )
             else:
-                print(f"No se encontraron productos para '{texto}' en WooCommerce. Generando respuesta con OpenAI.")
+                print(f"No se encontraron productos para '{palabras_clave}' en WooCommerce. Generando respuesta con OpenAI.")
                 respuesta = generar_respuesta_bruno(texto)
 
             # Enviar respuesta al cliente
@@ -167,6 +174,71 @@ Bruno nunca envía a los clientes a la competencia. Si no puede resolver una con
     except Exception as e:
         print("Error al generar respuesta:", e)
         return "Ocurrió un error al procesar tu consulta."
+    
+
+
+
+def generar_respuesta_bruno(texto_usuario):
+    try:
+        # Leer el contenido del archivo de prompt
+        with open("bruno_prompt.txt", "r", encoding="utf-8") as file:
+            prompt_completo = file.read()
+        
+        data = {
+            "model": "gpt-4",
+            "messages": [
+                {"role": "system", "content": prompt_completo},
+                {"role": "user", "content": texto_usuario}
+            ],
+            "max_tokens": 300
+        }
+        headers = {
+            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+        if response.status_code == 200:
+            return response.json()["choices"][0]["message"]["content"]
+        else:
+            print("Error al llamar a OpenAI:", response.text)
+            return "Lo siento, no puedo responder en este momento."
+    except Exception as e:
+        print("Error al generar respuesta:", e)
+        return "Ocurrió un error al procesar tu consulta."
+
+
+# Nueva función para extraer palabras clave usando OpenAI
+def extraer_palabras_clave(texto_usuario):
+    try:
+        prompt = f"""
+Eres un modelo avanzado de lenguaje natural. Tu tarea es analizar el siguiente texto y extraer las palabras clave más importantes para identificar productos en un catálogo:
+
+Texto: "{texto_usuario}"
+
+Por favor, devuelve solo las palabras clave relevantes separadas por comas.
+"""
+        data = {
+            "model": "gpt-4",
+            "messages": [
+                {"role": "system", "content": "Eres un analizador de palabras clave."},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 50
+        }
+        headers = {
+            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+        if response.status_code == 200:
+            return response.json()["choices"][0]["message"]["content"].strip()
+        else:
+            print("Error al extraer palabras clave:", response.text)
+            return texto_usuario  # Si falla, usa el texto completo
+    except Exception as e:
+        print("Error al generar palabras clave:", e)
+        return texto_usuario  # Si falla, usa el texto completo
+
 
 def enviar_respuesta_whatsapp(numero_cliente, respuesta):
     try:
