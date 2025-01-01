@@ -55,3 +55,32 @@ def buscar_productos(palabra_clave, pagina=1, por_pagina=10):
     except Exception as e:
         print(f"Error en la conexión con WooCommerce: {e}")
         return []
+
+
+def buscar_productos_paginados(palabra_clave, pagina=1, por_pagina=100):
+    productos = []
+    while True:
+        try:
+            params = {
+                "search": palabra_clave,
+                "page": pagina,
+                "per_page": por_pagina
+            }
+            response = requests.get(
+                woocommerce_url,
+                auth=HTTPBasicAuth(consumer_key, consumer_secret),
+                params=params
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if not data:
+                    break
+                productos.extend(data)
+                pagina += 1
+            else:
+                print(f"Error al buscar productos en WooCommerce: {response.status_code}")
+                break
+        except Exception as e:
+            print(f"Error en la conexión a WooCommerce: {e}")
+            break
+    return productos
