@@ -3,6 +3,10 @@ import requests
 import os
 from dotenv import load_dotenv
 from woocommerce_integration import buscar_productos, buscar_productos_paginados
+import logging
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename='bruno_logs.log')
 
 # Cargar variables de entorno
 load_dotenv()
@@ -19,14 +23,14 @@ async def whatsapp_webhook(request: Request):
     """Procesa los mensajes entrantes de WhatsApp"""
     try:
         data = await request.json()
-        print("Datos recibidos desde WhatsApp:", data)
+        logging.info(f"Datos recibidos desde WhatsApp: {data}")
 
         if "messages" in data["entry"][0]["changes"][0]["value"]:
             mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]
             texto = mensaje["text"]["body"]
             numero_cliente = mensaje["from"]
 
-            print(f"Mensaje recibido: {texto} de {numero_cliente}")
+            logging.info(f"Mensaje recibido: {texto} de {numero_cliente}")
 
             # Generar respuesta usando el modelo de lenguaje
             respuesta = generar_respuesta_bruno(texto)
@@ -34,11 +38,11 @@ async def whatsapp_webhook(request: Request):
             # Enviar respuesta al cliente
             enviar_respuesta_whatsapp(numero_cliente, respuesta)
         else:
-            print("No hay mensajes en la solicitud.")
+            logging.warning("No hay mensajes en la solicitud.")
 
         return {"status": "success"}
     except Exception as e:
-        print("Error en el webhook:", e)
+        logging.error(f"Error en el webhook: {e}")
         return {"status": "error", "error": str(e)}
 
 # Función para generar respuesta usando OpenAI
@@ -48,6 +52,10 @@ def generar_respuesta_bruno(texto_usuario):
         with open("bruno_prompt.txt", "r", encoding="utf-8") as file:
             prompt_completo = file.read()
 
+        # Loggear el prompt y la consulta del usuario
+        logging.info(f"Prompt usado: {prompt_completo}")
+        logging.info(f"Consulta del usuario: {texto_usuario}")
+
         # Consultar productos en WooCommerce
         productos = buscar_productos(texto_usuario)
         if productos:
@@ -55,18 +63,20 @@ def generar_respuesta_bruno(texto_usuario):
                 f"{i+1}. {p['name']} - ${p['price']} MXN - [Ver producto]({p['permalink']})"
                 for i, p in enumerate(productos)
             ])
+            logging.info(f"Productos encontrados: {productos_info}")
             return (
                 f"\u00a1Por supuesto! Los siguientes son algunas opciones relacionadas con tu consulta:\n\n"
                 f"{productos_info}\n\n"
                 f"Dale clic al enlace para ver m\u00e1s detalles del producto. \u00bfHay alguno que te interese o necesitas m\u00e1s ayuda?"
             )
         else:
+            logging.info("No se encontraron productos para la consulta del usuario.")
             return (
                 "Lo siento, no encontr\u00e9 productos relacionados con tu consulta. \u00bfQuieres intentar con otra b\u00fasqueda?"
             )
 
     except Exception as e:
-        print("Error al generar respuesta:", e)
+        logging.error(f"Error al generar respuesta: {e}")
         return "Ocurri\u00f3 un error al procesar tu consulta. Por favor, intenta m\u00e1s tarde."
 
 # Función para enviar respuesta a WhatsApp
@@ -86,11 +96,11 @@ def enviar_respuesta_whatsapp(numero_cliente, respuesta):
         }
         response = requests.post(url, headers=headers, json=payload)
         if response.status_code == 200:
-            print("Respuesta enviada exitosamente a WhatsApp.")
+            logging.info("Respuesta enviada exitosamente a WhatsApp.")
         else:
-            print("Error al enviar respuesta a WhatsApp:", response.text)
+            logging.error(f"Error al enviar respuesta a WhatsApp: {response.text}")
     except Exception as e:
-        print("Error al enviar respuesta a WhatsApp:", e)
+        logging.error(f"Error al enviar respuesta a WhatsApp: {e}")
 
 # Función para notificar que los créditos de OpenAI están agotados
 def notificar_creditos_agotados():
@@ -115,11 +125,11 @@ def notificar_creditos_agotados():
             }
             response = requests.post(url, headers=headers, json=payload)
             if response.status_code == 200:
-                print("Notificación enviada por WhatsApp.")
+                logging.info("Notificación enviada por WhatsApp.")
             else:
-                print("Error al enviar notificación por WhatsApp:", response.text)
+                logging.error(f"Error al enviar notificación por WhatsApp: {response.text}")
     except Exception as e:
-        print("Error al enviar notificación de créditos agotados:", e)
+        logging.error(f"Error al enviar notificación de créditos agotados: {e}")
 
 if __name__ == "__main__":
     import uvicorn
