@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 from woocommerce_integration import buscar_productos, buscar_productos_paginados
 import logging
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename='bruno_logs.log')
+# Configurar logging para que envíe los mensajes a la consola
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Cargar variables de entorno
 load_dotenv()
