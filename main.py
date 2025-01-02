@@ -4,7 +4,6 @@ import os
 from dotenv import load_dotenv
 from woocommerce_integration import buscar_productos, buscar_productos_paginados
 
-
 # Cargar variables de entorno
 load_dotenv()
 
@@ -49,30 +48,26 @@ def generar_respuesta_bruno(texto_usuario):
         with open("bruno_prompt.txt", "r", encoding="utf-8") as file:
             prompt_completo = file.read()
 
-        data = {
-            "model": "gpt-4",
-            "messages": [
-                {"role": "system", "content": prompt_completo},
-                {"role": "user", "content": texto_usuario}
-            ],
-            "max_tokens": 300
-        }
-        headers = {
-            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
-            "Content-Type": "application/json"
-        }
-        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
-        if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
-        elif response.status_code == 429 or "insufficient_quota" in response.text:
-            notificar_creditos_agotados()
-            return "Lo siento, no puedo responder en este momento debido a un problema técnico."
+        # Consultar productos en WooCommerce
+        productos = buscar_productos(texto_usuario)
+        if productos:
+            productos_info = "\n".join([
+                f"{i+1}. {p['name']} - ${p['price']} MXN - [Ver producto]({p['permalink']})"
+                for i, p in enumerate(productos)
+            ])
+            return (
+                f"\u00a1Por supuesto! Los siguientes son algunas opciones relacionadas con tu consulta:\n\n"
+                f"{productos_info}\n\n"
+                f"Dale clic al enlace para ver m\u00e1s detalles del producto. \u00bfHay alguno que te interese o necesitas m\u00e1s ayuda?"
+            )
         else:
-            print("Error al llamar a OpenAI:", response.text)
-            return "Lo siento, no puedo responder en este momento."
+            return (
+                "Lo siento, no encontr\u00e9 productos relacionados con tu consulta. \u00bfQuieres intentar con otra b\u00fasqueda?"
+            )
+
     except Exception as e:
         print("Error al generar respuesta:", e)
-        return "Ocurrió un error al procesar tu consulta. Por favor, intenta más tarde."
+        return "Ocurri\u00f3 un error al procesar tu consulta. Por favor, intenta m\u00e1s tarde."
 
 # Función para enviar respuesta a WhatsApp
 def enviar_respuesta_whatsapp(numero_cliente, respuesta):
@@ -101,7 +96,6 @@ def enviar_respuesta_whatsapp(numero_cliente, respuesta):
 def notificar_creditos_agotados():
     try:
         mensaje = "Los créditos de OpenAI se han agotado. Por favor, recarga para evitar interrupciones."
-
 
         # Enviar notificación por WhatsApp
         whatsapp_phone_id = os.getenv('WHATSAPP_PHONE_ID')
