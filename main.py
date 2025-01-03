@@ -73,7 +73,7 @@ async def whatsapp_webhook(request: Request):
 
 
 # Función para generar respuesta usando OpenAI
-def generar_respuesta_bruno(historial_contexto, texto_usuario):
+def generar_respuesta_bruno(historial_contexto):
     try:
         # Añadir el mensaje actual del usuario al historial
         historial_contexto.append({"role": "user", "content": texto_usuario})
