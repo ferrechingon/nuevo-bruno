@@ -172,8 +172,11 @@ def truncar_historial(historial, max_tokens=3000):
 def cargar_prompt():
     try:
         with open("bruno_prompt.txt", "r", encoding="utf-8") as archivo:
-            return archivo.read()
+            prompt = archivo.read()
+            print(f"Prompt cargado: {prompt}")  # Debug temporal
+            return prompt
     except FileNotFoundError:
+        print("El archivo bruno_prompt.txt no se encontró.")  # Debug temporal
         return (
             "Eres Bruno, un asistente virtual para Ferrechingón. Ayudas a responder preguntas sobre productos, precios, "
             "envíos y políticas de la tienda. Tu personalidad es amigable, profesional y útil."
