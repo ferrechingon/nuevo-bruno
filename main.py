@@ -21,9 +21,11 @@ async def root():
 # Endpoint para manejar mensajes de WhatsApp
 @app.post("/webhook/")
 async def whatsapp_webhook(request: Request):
+    print("Entrando al webhook")  # Verifica si el código entra correctamente
     try:
         data = await request.json()
-        logging.info(f"Datos recibidos: {data}")  # Log de los datos entrantes
+        print(f"Datos recibidos: {data}")  # Reemplaza temporalmente logging para verificar
+        #logging.info(f"Datos recibidos: {data}")  # Log de los datos entrantes
         mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]
         texto = mensaje["text"]["body"]
         numero_cliente = mensaje["from"]
@@ -36,7 +38,12 @@ async def whatsapp_webhook(request: Request):
         historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
 
         # Generar respuesta con OpenAI
+        print(f"Historial enviado a OpenAI: {historial_contexto}")  # Reemplaza temporalmente logging para verificar
+        #logging.info(f"Historial enviado a OpenAI: {historial_contexto}")
         respuesta = generar_respuesta_bruno(historial_contexto, texto)
+        #logging.info(f"Respuesta generada: {respuesta}")
+        print(f"Respuesta generada: {respuesta}")  # Reemplaza temporalmente logging para verificar
+
 
         # Guardar la respuesta de Bruno en la base de datos
         guardar_mensaje(numero_cliente, "assistant", respuesta)
@@ -44,13 +51,14 @@ async def whatsapp_webhook(request: Request):
         # Enviar la respuesta al usuario
         enviar_respuesta_whatsapp(numero_cliente, respuesta)
     except KeyError as e:
-        logging.error(f"Error de clave en los datos recibidos: {e}")
+        #logging.error(f"Error de clave en los datos recibidos: {e}")
         return {"error": "Estructura inesperada en el payload"}
     except Exception as e:
-        logging.error(f"Error inesperado: {e}")
+        #logging.error(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
 
 # Función para generar respuesta usando OpenAI
+
 def generar_respuesta_bruno(historial_contexto, texto_usuario):
     try:
         # Añadir el mensaje actual del usuario al historial
