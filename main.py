@@ -42,14 +42,16 @@ async def whatsapp_webhook(request: Request):
             print("Número de cliente no encontrado. Ignorando el evento.")
             return {"status": "ignored"}
 
-        # Recuperar historial antes de guardar el mensaje actual
+        # Recuperar historial antes de guardar el mensaje
         historial = obtener_historial(numero_cliente)
 
-        # Crear contexto inicial si no hay historial previo
+        # Verificar si no hay historial y agregar el prompt inicial
         if not historial:
             prompt = cargar_prompt()
             print(f"Prompt cargado: {prompt}")  # Debug temporal
             historial_contexto = [{"role": "system", "content": prompt}]
+            # Guardar el prompt en la base de datos
+            guardar_mensaje(numero_cliente, "system", prompt)
         else:
             historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
 
@@ -76,7 +78,6 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         print(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
-
 
 
 
