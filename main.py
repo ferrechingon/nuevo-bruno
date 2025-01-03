@@ -75,9 +75,6 @@ async def whatsapp_webhook(request: Request):
 # Función para generar respuesta usando OpenAI
 def generar_respuesta_bruno(historial_contexto):
     try:
-        # Añadir el mensaje actual del usuario al historial
-        historial_contexto.append({"role": "user", "content": texto_usuario})
-
         # Configurar la solicitud a OpenAI
         url = "https://api.openai.com/v1/chat/completions"
         headers = {
@@ -92,16 +89,17 @@ def generar_respuesta_bruno(historial_contexto):
         }
 
         response = requests.post(url, headers=headers, json=payload)
+        response_data = response.json()
 
         if response.status_code == 200:
-            # Devolver la respuesta generada por OpenAI
-            return response.json()["choices"][0]["message"]["content"]
+            return response_data["choices"][0]["message"]["content"]
         else:
             logging.error(f"Error en OpenAI API: {response.status_code}, {response.text}")
             return "Lo siento, hubo un problema al procesar tu consulta."
     except Exception as e:
         logging.error(f"Error al generar respuesta: {e}")
         return "Ocurrió un error al procesar tu consulta. Por favor, intenta más tarde."
+
 
 
 
