@@ -42,22 +42,32 @@ async def whatsapp_webhook(request: Request):
             print("Número de cliente no encontrado. Ignorando el evento.")
             return {"status": "ignored"}
 
+        # Guardar el mensaje del usuario en la base de datos
         guardar_mensaje(numero_cliente, "user", texto)
 
+        # Recuperar historial
         historial = obtener_historial(numero_cliente)
+
+        # Crear contexto inicial si no hay historial previo
         if not historial:
             prompt = cargar_prompt()
+            print(f"Prompt cargado: {prompt}")  # Debug temporal
             historial_contexto = [{"role": "system", "content": prompt}]
         else:
             historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
 
+        # Añadir el mensaje actual del usuario al historial
         historial_contexto.append({"role": "user", "content": texto})
-        print(f"Historial enviado a OpenAI: {historial_contexto}")
+        print(f"Historial enviado a OpenAI: {historial_contexto}")  # Debug temporal
 
+        # Generar respuesta con OpenAI
         respuesta = generar_respuesta_bruno(historial_contexto)
-        print(f"Respuesta generada: {respuesta}")
+        print(f"Respuesta generada: {respuesta}")  # Debug temporal
 
+        # Guardar la respuesta de Bruno en la base de datos
         guardar_mensaje(numero_cliente, "assistant", respuesta)
+
+        # Enviar la respuesta al usuario
         enviar_respuesta_whatsapp(numero_cliente, respuesta)
 
     except KeyError as e:
