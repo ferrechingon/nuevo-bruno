@@ -21,43 +21,43 @@ async def root():
 # Endpoint para manejar mensajes de WhatsApp
 @app.post("/webhook/")
 async def whatsapp_webhook(request: Request):
-    print("Entrando al webhook")  # Verifica si el código entra correctamente
     try:
         data = await request.json()
-        print(f"Datos recibidos: {data}")  # Debug temporal para validar los datos
+        print(f"Datos recibidos: {data}")
 
-        # Extraer información del mensaje entrante
-        mensaje = data["entry"][0]["changes"][0]["value"].get("messages", [{}])[0]
-        texto = mensaje.get("text", {}).get("body", "")
+        # Verificar si el payload contiene mensajes
+        if "messages" not in data["entry"][0]["changes"][0]["value"]:
+            print("El payload no contiene mensajes. Ignorando el evento.")
+            return {"status": "ignored"}
+
+        mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]
+        texto = mensaje.get("text", {}).get("body", "").strip()
         numero_cliente = mensaje.get("from", "")
 
-        # Guardar el mensaje del usuario en la base de datos
+        if not texto:
+            print("El mensaje está vacío. Ignorando.")
+            return {"status": "ignored"}
+
+        if not numero_cliente:
+            print("Número de cliente no encontrado. Ignorando el evento.")
+            return {"status": "ignored"}
+
         guardar_mensaje(numero_cliente, "user", texto)
 
-        # Recuperar historial
         historial = obtener_historial(numero_cliente)
-        print(f"Historial recuperado: {historial}")
-
-        # Crear contexto inicial si no hay historial previo
         if not historial:
             prompt = cargar_prompt()
             historial_contexto = [{"role": "system", "content": prompt}]
-            print(f"Historial inicial con prompt: {historial_contexto}")
         else:
             historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
 
-        # Añadir el mensaje actual del usuario al historial
         historial_contexto.append({"role": "user", "content": texto})
         print(f"Historial enviado a OpenAI: {historial_contexto}")
 
-        # Generar respuesta con OpenAI
         respuesta = generar_respuesta_bruno(historial_contexto)
         print(f"Respuesta generada: {respuesta}")
 
-        # Guardar la respuesta de Bruno en la base de datos
         guardar_mensaje(numero_cliente, "assistant", respuesta)
-
-        # Enviar la respuesta al usuario
         enviar_respuesta_whatsapp(numero_cliente, respuesta)
 
     except KeyError as e:
@@ -66,6 +66,7 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         print(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
+
 
 
 
