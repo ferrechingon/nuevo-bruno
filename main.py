@@ -1,17 +1,3 @@
-
-if __name__ == "__main__":
-    try:
-        # Intentar leer el archivo bruno_prompt.txt
-        with open("bruno_prompt.txt", "r", encoding="utf-8") as archivo:
-            prompt = archivo.read()
-            print("Contenido del archivo bruno_prompt.txt:")
-            print(prompt)
-    except FileNotFoundError:
-        print("El archivo 'bruno_prompt.txt' no se encontró. Asegúrate de que esté en el directorio correcto.")
-    except Exception as e:
-        print(f"Error al leer el archivo: {e}")
-
-
 from fastapi import FastAPI, Request
 import requests
 import os
@@ -56,10 +42,7 @@ async def whatsapp_webhook(request: Request):
             print("Número de cliente no encontrado. Ignorando el evento.")
             return {"status": "ignored"}
 
-        # Guardar el mensaje del usuario en la base de datos
-        guardar_mensaje(numero_cliente, "user", texto)
-
-        # Recuperar historial
+        # Recuperar historial antes de guardar el mensaje actual
         historial = obtener_historial(numero_cliente)
 
         # Crear contexto inicial si no hay historial previo
@@ -72,16 +55,19 @@ async def whatsapp_webhook(request: Request):
 
         # Añadir el mensaje actual del usuario al historial
         historial_contexto.append({"role": "user", "content": texto})
-        print(f"Historial enviado a OpenAI: {historial_contexto}")  # Debug temporal
 
-        # Generar respuesta con OpenAI
+        # Guardar el mensaje del usuario en la base de datos
+        guardar_mensaje(numero_cliente, "user", texto)
+
+        # Enviar historial completo a OpenAI
+        print(f"Historial enviado a OpenAI: {historial_contexto}")
         respuesta = generar_respuesta_bruno(historial_contexto)
-        print(f"Respuesta generada: {respuesta}")  # Debug temporal
+        print(f"Respuesta generada: {respuesta}")
 
         # Guardar la respuesta de Bruno en la base de datos
         guardar_mensaje(numero_cliente, "assistant", respuesta)
 
-        # Enviar la respuesta al usuario
+        # Enviar la respuesta al usuario por WhatsApp
         enviar_respuesta_whatsapp(numero_cliente, respuesta)
 
     except KeyError as e:
@@ -90,6 +76,7 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         print(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
+
 
 
 
