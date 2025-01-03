@@ -51,12 +51,16 @@ async def whatsapp_webhook(request: Request):
             print(f"Prompt cargado: {prompt}")  # Debug temporal
             historial_contexto = [{"role": "system", "content": prompt}]
             # Guardar el prompt en la base de datos con el campo message_role definido como 'system'
+            print(f"Guardando mensaje con role: 'system'")
             guardar_mensaje(numero_cliente, "system", prompt)
         else:
             historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
 
         # Añadir el mensaje actual del usuario al historial
         historial_contexto.append({"role": "user", "content": texto})
+
+        # Truncar historial si excede el límite de tokens permitido
+        historial_contexto = truncar_historial(historial_contexto, max_tokens=7692)
 
         # Guardar el mensaje del usuario en la base de datos
         guardar_mensaje(numero_cliente, "user", texto)
@@ -88,6 +92,7 @@ async def whatsapp_webhook(request: Request):
 
 
 
+
 # Función para generar respuesta usando OpenAI
 def generar_respuesta_bruno(historial_contexto):
     try:
@@ -100,7 +105,7 @@ def generar_respuesta_bruno(historial_contexto):
         payload = {
             "model": "gpt-4",
             "messages": historial_contexto,
-            "max_tokens": 150,
+            "max_tokens": 500,
             "temperature": 0.7
         }
 
@@ -199,6 +204,18 @@ def cargar_prompt():
             "Eres Bruno, un asistente virtual para Ferrechingón. Ayudas a responder preguntas sobre productos, precios, "
             "envíos y políticas de la tienda. Tu personalidad es amigable, profesional y útil."
         )
+
+
+def truncar_historial(historial, max_tokens=7692):
+    def calcular_tokens(messages):
+        return sum(len(m["content"].split()) for m in messages)
+
+    while calcular_tokens(historial) > max_tokens:
+        if len(historial) > 1 and historial[0]["role"] == "system":
+            historial.pop(1)  # Mantén el mensaje "system"
+        else:
+            historial.pop(0)
+    return historial
 
 
 
