@@ -50,7 +50,7 @@ async def whatsapp_webhook(request: Request):
             prompt = cargar_prompt()
             print(f"Prompt cargado: {prompt}")  # Debug temporal
             historial_contexto = [{"role": "system", "content": prompt}]
-            # Guardar el prompt en la base de datos
+            # Guardar el prompt en la base de datos con el campo message_role definido como 'system'
             guardar_mensaje(numero_cliente, "system", prompt)
         else:
             historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
@@ -78,6 +78,7 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         print(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
+
 
 
 
