@@ -49,7 +49,7 @@ async def whatsapp_webhook(request: Request):
         print(f"Historial enviado a OpenAI: {historial_contexto}")  # Debug temporal
 
         # Generar respuesta con OpenAI
-        respuesta = generar_respuesta_bruno(historial_contexto)
+        respuesta = generar_respuesta_bruno(historial_contexto)  # Ajuste: solo historial_contexto
         print(f"Respuesta generada: {respuesta}")  # Debug temporal
 
         # Guardar la respuesta de Bruno en la base de datos
