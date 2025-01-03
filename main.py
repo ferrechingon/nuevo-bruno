@@ -1,3 +1,17 @@
+
+if __name__ == "__main__":
+    try:
+        # Intentar leer el archivo bruno_prompt.txt
+        with open("bruno_prompt.txt", "r", encoding="utf-8") as archivo:
+            prompt = archivo.read()
+            print("Contenido del archivo bruno_prompt.txt:")
+            print(prompt)
+    except FileNotFoundError:
+        print("El archivo 'bruno_prompt.txt' no se encontró. Asegúrate de que esté en el directorio correcto.")
+    except Exception as e:
+        print(f"Error al leer el archivo: {e}")
+
+
 from fastapi import FastAPI, Request
 import requests
 import os
