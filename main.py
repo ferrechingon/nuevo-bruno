@@ -21,60 +21,67 @@ async def root():
 # Endpoint para manejar mensajes de WhatsApp
 @app.post("/webhook/")
 async def whatsapp_webhook(request: Request):
-    data = await request.json()
-    mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]
-    texto = mensaje["text"]["body"]
-    numero_cliente = mensaje["from"]
+    try:
+        data = await request.json()
+        logging.info(f"Datos recibidos: {data}")  # Log de los datos entrantes
+        mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]
+        texto = mensaje["text"]["body"]
+        numero_cliente = mensaje["from"]
 
-    # Guardar el mensaje del usuario en la base de datos
-    guardar_mensaje(numero_cliente, "user", texto)
+        # Guardar el mensaje del usuario en la base de datos
+        guardar_mensaje(numero_cliente, "user", texto)
 
-    # Recuperar historial
-    historial = obtener_historial(numero_cliente)
-    historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
+        # Recuperar historial
+        historial = obtener_historial(numero_cliente)
+        historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
 
-    # Generar respuesta con OpenAI
-    respuesta = generar_respuesta_bruno(historial_contexto, texto)
+        # Generar respuesta con OpenAI
+        respuesta = generar_respuesta_bruno(historial_contexto, texto)
 
-    # Guardar la respuesta de Bruno en la base de datos
-    guardar_mensaje(numero_cliente, "assistant", respuesta)
+        # Guardar la respuesta de Bruno en la base de datos
+        guardar_mensaje(numero_cliente, "assistant", respuesta)
 
-    # Enviar la respuesta al usuario
-    enviar_respuesta_whatsapp(numero_cliente, respuesta)
+        # Enviar la respuesta al usuario
+        enviar_respuesta_whatsapp(numero_cliente, respuesta)
+    except KeyError as e:
+        logging.error(f"Error de clave en los datos recibidos: {e}")
+        return {"error": "Estructura inesperada en el payload"}
+    except Exception as e:
+        logging.error(f"Error inesperado: {e}")
+        return {"error": "Error en el servidor"}
 
 # Función para generar respuesta usando OpenAI
-def generar_respuesta_bruno(texto_usuario):
+def generar_respuesta_bruno(historial_contexto, texto_usuario):
     try:
-        # Leer el contenido del archivo de prompt
-        with open("bruno_prompt.txt", "r", encoding="utf-8") as file:
-            prompt_completo = file.read()
+        # Añadir el mensaje actual del usuario al historial
+        historial_contexto.append({"role": "user", "content": texto_usuario})
 
-        # Loggear el prompt y la consulta del usuario
-        logging.info(f"Prompt usado: {prompt_completo}")
-        logging.info(f"Consulta del usuario: {texto_usuario}")
+        # Configurar la solicitud a OpenAI
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "gpt-4",
+            "messages": historial_contexto,
+            "max_tokens": 150,
+            "temperature": 0.7
+        }
 
-        # Consultar productos en WooCommerce
-        productos = buscar_productos(texto_usuario)
-        if productos:
-            productos_info = "\n".join([
-                f"{i+1}. {p['name']} - ${p['price']} MXN - [Ver producto]({p['permalink']})"
-                for i, p in enumerate(productos)
-            ])
-            logging.info(f"Productos encontrados: {productos_info}")
-            return (
-                f"\u00a1Por supuesto! Los siguientes son algunas opciones relacionadas con tu consulta:\n\n"
-                f"{productos_info}\n\n"
-                f"Dale clic al enlace para ver m\u00e1s detalles del producto. \u00bfHay alguno que te interese o necesitas m\u00e1s ayuda?"
-            )
+        response = requests.post(url, headers=headers, json=payload)
+
+        if response.status_code == 200:
+            # Devolver la respuesta generada por OpenAI
+            return response.json()["choices"][0]["message"]["content"]
         else:
-            logging.info("No se encontraron productos para la consulta del usuario.")
-            return (
-                "Lo siento, no encontr\u00e9 productos relacionados con tu consulta. \u00bfQuieres intentar con otra b\u00fasqueda?"
-            )
-
+            logging.error(f"Error en OpenAI API: {response.status_code}, {response.text}")
+            return "Lo siento, hubo un problema al procesar tu consulta."
     except Exception as e:
         logging.error(f"Error al generar respuesta: {e}")
-        return "Ocurri\u00f3 un error al procesar tu consulta. Por favor, intenta m\u00e1s tarde."
+        return "Ocurrió un error al procesar tu consulta. Por favor, intenta más tarde."
+
+
 
 # Función para enviar respuesta a WhatsApp
 def enviar_respuesta_whatsapp(numero_cliente, respuesta):
@@ -127,6 +134,19 @@ def notificar_creditos_agotados():
                 logging.error(f"Error al enviar notificación por WhatsApp: {response.text}")
     except Exception as e:
         logging.error(f"Error al enviar notificación de créditos agotados: {e}")
+
+
+def truncar_historial(historial, max_tokens=3000):
+    def calcular_tokens(messages):
+        return sum(len(m["content"].split()) for m in messages)
+
+    while calcular_tokens(historial) > max_tokens:
+        if len(historial) > 1 and historial[0]["role"] == "system":
+            historial.pop(1)  # Mantén el mensaje "system"
+        else:
+            historial.pop(0)
+    return historial
+
 
 if __name__ == "__main__":
     import uvicorn

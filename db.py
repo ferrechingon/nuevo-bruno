@@ -12,6 +12,7 @@ def conectar_db():
 
 def guardar_mensaje(user_id, role, content):
     conn = conectar_db()
+    logging.info(f"Guardando mensaje: {user_id}, {role}, {content}")
     try:
         with conn.cursor() as cursor:
             sql = "INSERT INTO conversation_history (user_id, message_role, message_content) VALUES (%s, %s, %s)"
@@ -21,6 +22,7 @@ def guardar_mensaje(user_id, role, content):
         conn.close()
 
 def obtener_historial(user_id):
+    logging.info(f"Obteneindo historial: {user_id}")
     conn = conectar_db()
     try:
         with conn.cursor() as cursor:
