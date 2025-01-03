@@ -24,8 +24,9 @@ async def whatsapp_webhook(request: Request):
     print("Entrando al webhook")  # Verifica si el código entra correctamente
     try:
         data = await request.json()
-        print(f"Datos recibidos: {data}")  # Reemplaza temporalmente logging para verificar
-        #logging.info(f"Datos recibidos: {data}")  # Log de los datos entrantes
+        print(f"Datos recibidos: {data}")  # Debug temporal para validar los datos
+
+        # Extraer información del mensaje entrante
         mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]
         texto = mensaje["text"]["body"]
         numero_cliente = mensaje["from"]
@@ -35,30 +36,43 @@ async def whatsapp_webhook(request: Request):
 
         # Recuperar historial
         historial = obtener_historial(numero_cliente)
-        historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
+
+        # Crear contexto inicial si no hay historial previo
+        if not historial:
+            prompt = cargar_prompt()  # Cargar el prompt desde el archivo
+            historial_contexto = [{"role": "system", "content": prompt}]
+        else:
+            historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
+
+        # Añadir el mensaje actual del usuario al historial
+        historial_contexto.append({"role": "user", "content": texto})
+        print(f"Historial enviado a OpenAI: {historial_contexto}")  # Debug temporal
 
         # Generar respuesta con OpenAI
-        print(f"Historial enviado a OpenAI: {historial_contexto}")  # Reemplaza temporalmente logging para verificar
-        #logging.info(f"Historial enviado a OpenAI: {historial_contexto}")
-        respuesta = generar_respuesta_bruno(historial_contexto, texto)
-        #logging.info(f"Respuesta generada: {respuesta}")
-        print(f"Respuesta generada: {respuesta}")  # Reemplaza temporalmente logging para verificar
-
+        respuesta = generar_respuesta_bruno(historial_contexto)
+        print(f"Respuesta generada: {respuesta}")  # Debug temporal
 
         # Guardar la respuesta de Bruno en la base de datos
         guardar_mensaje(numero_cliente, "assistant", respuesta)
 
         # Enviar la respuesta al usuario
         enviar_respuesta_whatsapp(numero_cliente, respuesta)
+
     except KeyError as e:
-        #logging.error(f"Error de clave en los datos recibidos: {e}")
+        print(f"Error de clave en los datos recibidos: {e}")
         return {"error": "Estructura inesperada en el payload"}
     except Exception as e:
-        #logging.error(f"Error inesperado: {e}")
+        print(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
 
-# Función para generar respuesta usando OpenAI
 
+
+
+
+
+
+
+# Función para generar respuesta usando OpenAI
 def generar_respuesta_bruno(historial_contexto, texto_usuario):
     try:
         # Añadir el mensaje actual del usuario al historial
@@ -154,6 +168,18 @@ def truncar_historial(historial, max_tokens=3000):
         else:
             historial.pop(0)
     return historial
+
+
+
+def cargar_prompt():
+    try:
+        with open("bruno_prompt.txt", "r", encoding="utf-8") as archivo:
+            return archivo.read()
+    except FileNotFoundError:
+        return (
+            "Eres Bruno, un asistente virtual para Ferrechingón. Ayudas a responder preguntas sobre productos, precios, "
+            "envíos y políticas de la tienda. Tu personalidad es amigable, profesional y útil."
+        )
 
 
 if __name__ == "__main__":
