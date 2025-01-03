@@ -3,6 +3,7 @@ import requests
 import os
 from dotenv import load_dotenv
 from woocommerce_integration import buscar_productos, buscar_productos_paginados
+from db import guardar_mensaje, obtener_historial
 import logging
 
 # Configurar logging para que envíe los mensajes a la consola
@@ -20,30 +21,26 @@ async def root():
 # Endpoint para manejar mensajes de WhatsApp
 @app.post("/webhook/")
 async def whatsapp_webhook(request: Request):
-    """Procesa los mensajes entrantes de WhatsApp"""
-    try:
-        data = await request.json()
-        logging.info(f"Datos recibidos desde WhatsApp: {data}")
+    data = await request.json()
+    mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]
+    texto = mensaje["text"]["body"]
+    numero_cliente = mensaje["from"]
 
-        if "messages" in data["entry"][0]["changes"][0]["value"]:
-            mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]
-            texto = mensaje["text"]["body"]
-            numero_cliente = mensaje["from"]
+    # Guardar el mensaje del usuario en la base de datos
+    guardar_mensaje(numero_cliente, "user", texto)
 
-            logging.info(f"Mensaje recibido: {texto} de {numero_cliente}")
+    # Recuperar historial
+    historial = obtener_historial(numero_cliente)
+    historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
 
-            # Generar respuesta usando el modelo de lenguaje
-            respuesta = generar_respuesta_bruno(texto)
+    # Generar respuesta con OpenAI
+    respuesta = generar_respuesta_bruno(historial_contexto, texto)
 
-            # Enviar respuesta al cliente
-            enviar_respuesta_whatsapp(numero_cliente, respuesta)
-        else:
-            logging.warning("No hay mensajes en la solicitud.")
+    # Guardar la respuesta de Bruno en la base de datos
+    guardar_mensaje(numero_cliente, "assistant", respuesta)
 
-        return {"status": "success"}
-    except Exception as e:
-        logging.error(f"Error en el webhook: {e}")
-        return {"status": "error", "error": str(e)}
+    # Enviar la respuesta al usuario
+    enviar_respuesta_whatsapp(numero_cliente, respuesta)
 
 # Función para generar respuesta usando OpenAI
 def generar_respuesta_bruno(texto_usuario):
