@@ -27,30 +27,32 @@ async def whatsapp_webhook(request: Request):
         print(f"Datos recibidos: {data}")  # Debug temporal para validar los datos
 
         # Extraer información del mensaje entrante
-        mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]
-        texto = mensaje["text"]["body"]
-        numero_cliente = mensaje["from"]
+        mensaje = data["entry"][0]["changes"][0]["value"].get("messages", [{}])[0]
+        texto = mensaje.get("text", {}).get("body", "")
+        numero_cliente = mensaje.get("from", "")
 
         # Guardar el mensaje del usuario en la base de datos
         guardar_mensaje(numero_cliente, "user", texto)
 
         # Recuperar historial
         historial = obtener_historial(numero_cliente)
+        print(f"Historial recuperado: {historial}")
 
         # Crear contexto inicial si no hay historial previo
         if not historial:
-            prompt = cargar_prompt()  # Cargar el prompt desde el archivo
+            prompt = cargar_prompt()
             historial_contexto = [{"role": "system", "content": prompt}]
+            print(f"Historial inicial con prompt: {historial_contexto}")
         else:
             historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
 
         # Añadir el mensaje actual del usuario al historial
         historial_contexto.append({"role": "user", "content": texto})
-        print(f"Historial enviado a OpenAI: {historial_contexto}")  # Debug temporal
+        print(f"Historial enviado a OpenAI: {historial_contexto}")
 
         # Generar respuesta con OpenAI
-        respuesta = generar_respuesta_bruno(historial_contexto)  # Ajuste: solo historial_contexto
-        print(f"Respuesta generada: {respuesta}")  # Debug temporal
+        respuesta = generar_respuesta_bruno(historial_contexto)
+        print(f"Respuesta generada: {respuesta}")
 
         # Guardar la respuesta de Bruno en la base de datos
         guardar_mensaje(numero_cliente, "assistant", respuesta)
