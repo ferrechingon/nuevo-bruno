@@ -1,4 +1,5 @@
 import pymysql
+import logging 
 
 def conectar_db():
     return pymysql.connect(
