@@ -112,6 +112,8 @@ async def whatsapp_webhook(request: Request):
 
         response = requests.post(url, headers=headers, json=payload)
 
+        respuesta = "Lo siento, no pude procesar tu solicitud. Por favor intenta de nuevo más tarde."  # Valor predeterminado
+
         if response.status_code == 200:
             respuesta_openai = response.json()
         else:
@@ -131,6 +133,8 @@ async def whatsapp_webhook(request: Request):
                     # Crear respuesta amigable para el usuario
                     if "error" in resultado:
                         respuesta = "Hubo un error al buscar los productos. Por favor intenta de nuevo."
+                    elif not resultado:  # Caso de resultados vacíos
+                        respuesta = "Lo siento, no encontré productos que coincidan con tu búsqueda. Por favor, intenta con otras palabras clave o dame más detalles."
                     else:
                         productos = resultado
                         respuesta = "Aquí están los resultados:\n"
