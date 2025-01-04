@@ -130,7 +130,7 @@ async def whatsapp_webhook(request: Request):
                 function_name = choice["function_call"]["name"]
                 function_args = json.loads(choice["function_call"]["arguments"])
                 if function_name == "buscar_productos":
-                    respuesta = f"Ejecutando búsqueda con los parámetros: {function_args}"
+                    respuesta = ejecutar_busqueda(function_args)
                 else:
                     respuesta = "Lo siento, no pude procesar tu solicitud."
             else:
@@ -151,6 +151,48 @@ async def whatsapp_webhook(request: Request):
         logging.error(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
 
+# Función de ejemplo para enviar respuestas a WhatsApp
+def enviar_respuesta_whatsapp(numero_cliente, mensaje):
+    logging.info(f"Enviando respuesta a {numero_cliente}: {mensaje}")
+    # Implementa aquí la lógica para enviar mensajes a través de la API de WhatsApp
+
+def ejecutar_busqueda(args):
+    try:
+        query = args.get("query", "")
+        max_results = args.get("max_results", 5)
+
+        # Llamada a la API de WooCommerce para buscar productos
+        wc_api_url = f"{os.getenv('WOOCOMMERCE_URL')}/wp-json/wc/v3/products"
+        wc_consumer_key = os.getenv("WOOCOMMERCE_CONSUMER_KEY")
+        wc_consumer_secret = os.getenv("WOOCOMMERCE_CONSUMER_SECRET")
+
+        params = {
+            "search": query,
+            "per_page": max_results
+        }
+
+        response = requests.get(wc_api_url, auth=(wc_consumer_key, wc_consumer_secret), params=params)
+
+        if response.status_code != 200:
+            logging.error(f"Error al buscar productos en WooCommerce: {response.status_code}, {response.text}")
+            return "Lo siento, ocurrió un error al buscar productos. Por favor intenta de nuevo más tarde."
+
+        productos = response.json()
+        if not productos:
+            return "No encontré productos que coincidan con tu búsqueda. ¿Quieres intentar con otras palabras clave?"
+
+        resultados = []
+        for producto in productos:
+            nombre = producto.get("name", "Producto sin nombre")
+            precio = producto.get("price", "Precio no disponible")
+            enlace = producto.get("permalink", "Enlace no disponible")
+            resultados.append(f"- {nombre} - ${precio} MXN - Ver en Ferrechingón({enlace})")
+
+        return "\n".join(resultados)
+
+    except Exception as e:
+        logging.error(f"Error al ejecutar la búsqueda de productos: {e}")
+        return "Lo siento, ocurrió un error inesperado durante la búsqueda."
 
 
 
