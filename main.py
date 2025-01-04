@@ -2,12 +2,10 @@ from fastapi import FastAPI, Request
 import requests
 import os
 from dotenv import load_dotenv
-from woocommerce_integration import buscar_productos, buscar_productos_paginados
 from db import guardar_mensaje, obtener_historial
+from woocommerce_integration import buscar_productos_paginados
 import logging
 import json
-
-
 
 # Configurar logging para que envíe los mensajes a la consola
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -17,11 +15,6 @@ load_dotenv()
 
 app = FastAPI()
 
-@app.get("/")
-async def root():
-    return {"message": "¡Hola, soy Bruno, listo para ayudarte!"}
-
-# Endpoint para manejar mensajes de WhatsApp
 @app.get("/")
 async def root():
     return {"message": "¡Hola, soy Bruno, listo para ayudarte!"}
@@ -103,7 +96,8 @@ async def whatsapp_webhook(request: Request):
                         "type": "object",
                         "properties": {
                             "query": {"type": "string", "description": "Palabras clave para buscar productos."},
-                            "max_results": {"type": "integer", "description": "Número máximo de resultados a devolver."}
+                            "pagina": {"type": "integer", "description": "Número de la página a consultar."},
+                            "por_pagina": {"type": "integer", "description": "Cantidad de resultados por página."}
                         },
                         "required": ["query"]
                     }
@@ -130,7 +124,7 @@ async def whatsapp_webhook(request: Request):
                 function_name = choice["function_call"]["name"]
                 function_args = json.loads(choice["function_call"]["arguments"])
                 if function_name == "buscar_productos":
-                    respuesta = ejecutar_busqueda(function_args)
+                    respuesta = buscar_productos_paginados(function_args["query"], function_args.get("pagina", 1), function_args.get("por_pagina", 5))
                 else:
                     respuesta = "Lo siento, no pude procesar tu solicitud."
             else:
@@ -156,178 +150,7 @@ def enviar_respuesta_whatsapp(numero_cliente, mensaje):
     logging.info(f"Enviando respuesta a {numero_cliente}: {mensaje}")
     # Implementa aquí la lógica para enviar mensajes a través de la API de WhatsApp
 
-def ejecutar_busqueda(args):
-    try:
-        query = args.get("query", "")
-        max_results = args.get("max_results", 5)
-
-        # Llamada a la API de WooCommerce para buscar productos
-        wc_api_url = f"{os.getenv('WOOCOMMERCE_URL')}/wp-json/wc/v3/products"
-        wc_consumer_key = os.getenv("WOOCOMMERCE_CONSUMER_KEY")
-        wc_consumer_secret = os.getenv("WOOCOMMERCE_CONSUMER_SECRET")
-
-        params = {
-            "search": query,
-            "per_page": max_results
-        }
-
-        response = requests.get(wc_api_url, auth=(wc_consumer_key, wc_consumer_secret), params=params)
-
-        if response.status_code != 200:
-            logging.error(f"Error al buscar productos en WooCommerce: {response.status_code}, {response.text}")
-            return "Lo siento, ocurrió un error al buscar productos. Por favor intenta de nuevo más tarde."
-
-        productos = response.json()
-        if not productos:
-            return "No encontré productos que coincidan con tu búsqueda. ¿Quieres intentar con otras palabras clave?"
-
-        resultados = []
-        for producto in productos:
-            nombre = producto.get("name", "Producto sin nombre")
-            precio = producto.get("price", "Precio no disponible")
-            enlace = producto.get("permalink", "Enlace no disponible")
-            resultados.append(f"- {nombre} - ${precio} MXN - Ver en Ferrechingón({enlace})")
-
-        return "\n".join(resultados)
-
-    except Exception as e:
-        logging.error(f"Error al ejecutar la búsqueda de productos: {e}")
-        return "Lo siento, ocurrió un error inesperado durante la búsqueda."
-
-
-
-
-
-
-
-
-# Función para generar respuesta usando OpenAI
-def generar_respuesta_bruno(historial_contexto):
-    try:
-        # Configurar la solicitud a OpenAI
-        url = "https://api.openai.com/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": "gpt-4",
-            "messages": historial_contexto,
-            "max_tokens": 500,
-            "temperature": 0.7
-        }
-
-        response = requests.post(url, headers=headers, json=payload)
-        response_data = response.json()
-
-        if response.status_code == 200:
-            return response_data["choices"][0]["message"]["content"]
-        else:
-            logging.error(f"Error en OpenAI API: {response.status_code}, {response.text}")
-            return "Lo siento, hubo un problema al procesar tu consulta."
-    except Exception as e:
-        logging.error(f"Error al generar respuesta: {e}")
-        return "Ocurrió un error al procesar tu consulta. Por favor, intenta más tarde."
-
-
-
-
-# Función para enviar respuesta a WhatsApp
-def enviar_respuesta_whatsapp(numero_cliente, respuesta):
-    try:
-        whatsapp_phone_id = os.getenv('WHATSAPP_PHONE_ID')
-        url = f"https://graph.facebook.com/v16.0/{whatsapp_phone_id}/messages"
-        headers = {
-            "Authorization": f"Bearer {os.getenv('WHATSAPP_API_TOKEN')}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": numero_cliente,
-            "type": "text",
-            "text": {"body": respuesta}
-        }
-        response = requests.post(url, headers=headers, json=payload)
-        if response.status_code == 200:
-            logging.info("Respuesta enviada exitosamente a WhatsApp.")
-        else:
-            logging.error(f"Error al enviar respuesta a WhatsApp: {response.text}")
-    except Exception as e:
-        logging.error(f"Error al enviar respuesta a WhatsApp: {e}")
-
-# Función para notificar que los créditos de OpenAI están agotados
-def notificar_creditos_agotados():
-    try:
-        mensaje = "Los créditos de OpenAI se han agotado. Por favor, recarga para evitar interrupciones."
-
-        # Enviar notificación por WhatsApp
-        whatsapp_phone_id = os.getenv('WHATSAPP_PHONE_ID')
-        admin_phone_number = os.getenv('5213333597991')
-
-        if whatsapp_phone_id and admin_phone_number:
-            url = f"https://graph.facebook.com/v16.0/{whatsapp_phone_id}/messages"
-            headers = {
-                "Authorization": f"Bearer {os.getenv('WHATSAPP_API_TOKEN')}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "messaging_product": "whatsapp",
-                "to": admin_phone_number,
-                "type": "text",
-                "text": {"body": mensaje}
-            }
-            response = requests.post(url, headers=headers, json=payload)
-            if response.status_code == 200:
-                logging.info("Notificación enviada por WhatsApp.")
-            else:
-                logging.error(f"Error al enviar notificación por WhatsApp: {response.text}")
-    except Exception as e:
-        logging.error(f"Error al enviar notificación de créditos agotados: {e}")
-
-
-def truncar_historial(historial, max_tokens=3000):
-    def calcular_tokens(messages):
-        return sum(len(m["content"].split()) for m in messages)
-
-    while calcular_tokens(historial) > max_tokens:
-        if len(historial) > 1 and historial[0]["role"] == "system":
-            historial.pop(1)  # Mantén el mensaje "system"
-        else:
-            historial.pop(0)
-    return historial
-
-
-
-   
-
-def cargar_prompt():
-    try:
-        with open("bruno_prompt.txt", "r", encoding="utf-8") as archivo:
-            prompt = archivo.read()
-            print(f"Prompt cargado: {prompt}")  # Debug temporal
-            return prompt
-    except FileNotFoundError:
-        print("El archivo bruno_prompt.txt no se encontró.")
-        return (
-            "Eres Bruno, un asistente virtual para Ferrechingón. Ayudas a responder preguntas sobre productos, precios, "
-            "envíos y políticas de la tienda. Tu personalidad es amigable, profesional y útil."
-        )
-
-
-def truncar_historial(historial, max_tokens=7692):
-    def calcular_tokens(messages):
-        return sum(len(m["content"].split()) for m in messages)
-
-    while calcular_tokens(historial) > max_tokens:
-        if len(historial) > 1 and historial[0]["role"] == "system":
-            historial.pop(1)  # Mantén el mensaje "system"
-        else:
-            historial.pop(0)
-    return historial
-
-
-
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 8000))  # Render asigna el puerto a la variable de entorno PORT
     uvicorn.run("main:app", host="0.0.0.0", port=port)
