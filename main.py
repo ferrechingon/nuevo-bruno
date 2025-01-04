@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from woocommerce_integration import buscar_productos, buscar_productos_paginados
 from db import guardar_mensaje, obtener_historial
 import logging
-import openai
+
 
 # Configurar logging para que envíe los mensajes a la consola
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -49,9 +49,9 @@ async def whatsapp_webhook(request: Request):
         # Verificar si no hay historial y agregar el prompt inicial
         if not historial:
             prompt = cargar_prompt()
-            #print(f"Prompt cargado: {prompt}")  # Debug temporal
+            print(f"Prompt cargado: {prompt}")  # Debug temporal
             historial_contexto = [{"role": "system", "content": prompt}]
-            #print(f"Guardando mensaje con role: 'system'")
+            print(f"Guardando mensaje con role: 'system'")
             guardar_mensaje(numero_cliente, "system", prompt)
         else:
             historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
@@ -93,38 +93,53 @@ async def whatsapp_webhook(request: Request):
             }
         ]
 
-        # Enviar historial completo a OpenAI con funciones
-        print(f"Historial enviado a OpenAI: {historial_contexto}")
-        respuesta_openai = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=historial_contexto,
-            functions=functions,
-            function_call="auto"
-        )
+        # Llamada a OpenAI usando requests
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "gpt-4",
+            "messages": historial_contexto,
+            "functions": functions,
+            "function_call": "auto",
+            "max_tokens": 500,
+            "temperature": 0.7
+        }
 
-        # Procesar la respuesta
-        if "function_call" in respuesta_openai["choices"][0]["message"]:
-            function_name = respuesta_openai["choices"][0]["message"]["function_call"]["name"]
-            arguments = json.loads(respuesta_openai["choices"][0]["message"]["function_call"]["arguments"])
+        response = requests.post(url, headers=headers, json=payload)
 
-            if function_name == "buscar_productos":
-                resultado = buscar_productos(**arguments)
-                historial_contexto.append({"role": "function", "name": function_name, "content": json.dumps(resultado)})
+        if response.status_code == 200:
+            respuesta_openai = response.json()
+        else:
+            print(f"Error en OpenAI API: {response.status_code}, {response.text}")
+            respuesta_openai = {"error": response.text}
 
-                # Crear respuesta amigable para el usuario
-                if "error" in resultado:
-                    respuesta = "Hubo un error al buscar los productos. Por favor intenta de nuevo."
-                else:
-                    productos = resultado
-                    respuesta = "Aquí están los resultados:\n"
-                    for producto in productos:
-                        respuesta += f"- {producto['name']} - ${producto['price']} MXN - [Ver más]({producto['permalink']})\n"
+        # Procesar la respuesta de OpenAI
+        if "choices" in respuesta_openai:
+            message = respuesta_openai["choices"][0]["message"]
+            if "function_call" in message:
+                function_name = message["function_call"]["name"]
+                arguments = json.loads(message["function_call"]["arguments"])
+                if function_name == "buscar_productos":
+                    resultado = buscar_productos(**arguments)
+                    historial_contexto.append({"role": "function", "name": function_name, "content": json.dumps(resultado)})
 
-                    # Mensaje para continuar navegando por páginas
-                    if len(productos) == arguments.get("por_pagina", 10):
-                        respuesta += "\nSi quieres ver más resultados, escribe algo como: 'Muéstrame la página 2'."
+                    # Crear respuesta amigable para el usuario
+                    if "error" in resultado:
+                        respuesta = "Hubo un error al buscar los productos. Por favor intenta de nuevo."
+                    else:
+                        productos = resultado
+                        respuesta = "Aquí están los resultados:\n"
+                        for producto in productos:
+                            respuesta += f"- {producto['name']} - ${producto['price']} MXN - [Ver más]({producto['permalink']})\n"
 
-                historial_contexto.append({"role": "assistant", "content": respuesta})
+                        # Mensaje para continuar navegando por páginas
+                        if len(productos) == arguments.get("por_pagina", 10):
+                            respuesta += "\nSi quieres ver más resultados, escribe algo como: 'Muéstrame la página 2'."
+
+                    historial_contexto.append({"role": "assistant", "content": respuesta})
 
         # Guardar la respuesta de Bruno en la base de datos
         guardar_mensaje(numero_cliente, "assistant", respuesta)
@@ -138,6 +153,7 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         print(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
+
 
 
 
