@@ -121,12 +121,20 @@ async def whatsapp_webhook(request: Request):
             respuesta_json = response.json()
             choice = respuesta_json.get("choices", [{}])[0].get("message", {})
             if choice.get("function_call"):
-                function_name = choice["function_call"]["name"]
-                function_args = json.loads(choice["function_call"]["arguments"])
-                if function_name == "buscar_productos":
-                    respuesta = buscar_productos_paginados(function_args["query"], function_args.get("pagina", 1), function_args.get("por_pagina", 5))
-                else:
-                    respuesta = "Lo siento, no pude procesar tu solicitud."
+                try:
+                    function_args = json.loads(choice["function_call"]["arguments"])
+                    if choice["function_call"]["name"] == "buscar_productos":
+                        resultados, hay_mas_paginas = buscar_productos_paginados(
+                            function_args["query"],
+                            function_args.get("pagina", 1),
+                            function_args.get("por_pagina", 5)
+                        )
+                        respuesta = resultados
+                        if hay_mas_paginas:
+                            respuesta += "\n\nPuedes pedirme ver más páginas si deseas continuar explorando."
+                except json.JSONDecodeError as e:
+                    logging.error(f"Error al interpretar arguments: {e}")
+                    respuesta = "Lo siento, ocurrió un error al procesar la solicitud."
             else:
                 respuesta = choice.get("content", "Lo siento, no pude procesar tu solicitud.")
 
@@ -144,6 +152,7 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         logging.error(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
+
 
 # Función de ejemplo para enviar respuestas a WhatsApp
 def enviar_respuesta_whatsapp(numero_cliente, mensaje):
