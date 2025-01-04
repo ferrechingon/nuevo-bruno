@@ -23,15 +23,13 @@ async def root():
 @app.post("/webhook/")
 async def whatsapp_webhook(request: Request):
     try:
+        # Obtener datos del request
         data = await request.json()
-        print(f"Datos recibidos: {data}")
-
-        # Inicializar respuesta por defecto
-        respuesta = "Lo siento, no pude procesar tu solicitud. Por favor, intenta de nuevo más tarde."
+        logging.info(f"Datos recibidos: {data}")
 
         # Verificar si el payload contiene mensajes
         if "messages" not in data["entry"][0]["changes"][0]["value"]:
-            print("El payload no contiene mensajes. Ignorando el evento.")
+            logging.info("El payload no contiene mensajes. Ignorando el evento.")
             return {"status": "ignored"}
 
         mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]
@@ -39,11 +37,11 @@ async def whatsapp_webhook(request: Request):
         numero_cliente = mensaje.get("from", "")
 
         if not texto:
-            print("El mensaje está vacío. Ignorando.")
+            logging.info("El mensaje está vacío. Ignorando.")
             return {"status": "ignored"}
 
         if not numero_cliente:
-            print("Número de cliente no encontrado. Ignorando el evento.")
+            logging.info("Número de cliente no encontrado. Ignorando el evento.")
             return {"status": "ignored"}
 
         # Recuperar historial antes de guardar el mensaje
@@ -52,7 +50,6 @@ async def whatsapp_webhook(request: Request):
         # Verificar si no hay historial y agregar el prompt inicial
         if not historial:
             prompt = cargar_prompt()
-            print(f"Prompt cargado: {prompt}")
             historial_contexto = [{"role": "system", "content": prompt}]
             guardar_mensaje(numero_cliente, "system", prompt)
         else:
@@ -112,15 +109,14 @@ async def whatsapp_webhook(request: Request):
 
         response = requests.post(url, headers=headers, json=payload)
 
-        if response.status_code == 200:
-            respuesta_openai = response.json()
+        if response.status_code != 200:
+            logging.error(f"Error en OpenAI API: {response.status_code}, {response.text}")
+            respuesta = "Lo siento, no pude procesar tu solicitud. Por favor, intenta de nuevo más tarde."
         else:
-            print(f"Error en OpenAI API: {response.status_code}, {response.text}")
-            respuesta_openai = {"error": response.text}
-
-        # Procesar la respuesta de OpenAI
-        if "choices" in respuesta_openai:
+            respuesta_openai = response.json()
             message = respuesta_openai["choices"][0]["message"]
+
+            # Manejo de invocación de funciones
             if "function_call" in message:
                 function_name = message["function_call"]["name"]
                 arguments = json.loads(message["function_call"]["arguments"])
@@ -128,7 +124,6 @@ async def whatsapp_webhook(request: Request):
                     resultado = buscar_productos(**arguments)
                     historial_contexto.append({"role": "function", "name": function_name, "content": json.dumps(resultado)})
 
-                    # Crear respuesta amigable para el usuario
                     if "error" in resultado:
                         respuesta = "Hubo un error al buscar los productos. Por favor intenta de nuevo."
                     else:
@@ -139,6 +134,8 @@ async def whatsapp_webhook(request: Request):
 
                         if len(productos) == arguments.get("por_pagina", 10):
                             respuesta += "\nSi quieres ver más resultados, escribe algo como: 'Muéstrame la página 2'."
+            else:
+                respuesta = message.get("content", "Lo siento, no pude procesar tu solicitud. Por favor, intenta de nuevo más tarde.")
 
         # Guardar la respuesta de Bruno en la base de datos
         guardar_mensaje(numero_cliente, "assistant", respuesta)
@@ -147,11 +144,12 @@ async def whatsapp_webhook(request: Request):
         enviar_respuesta_whatsapp(numero_cliente, respuesta)
 
     except KeyError as e:
-        print(f"Error de clave en los datos recibidos: {e}")
+        logging.error(f"Error de clave en los datos recibidos: {e}")
         return {"error": "Estructura inesperada en el payload"}
     except Exception as e:
-        print(f"Error inesperado: {e}")
+        logging.error(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
+
 
 
 
