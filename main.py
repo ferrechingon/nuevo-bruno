@@ -50,7 +50,6 @@ async def whatsapp_webhook(request: Request):
             prompt = cargar_prompt()
             print(f"Prompt cargado: {prompt}")  # Debug temporal
             historial_contexto = [{"role": "system", "content": prompt}]
-            # Guardar el prompt en la base de datos con el campo message_role definido como 'system'
             print(f"Guardando mensaje con role: 'system'")
             guardar_mensaje(numero_cliente, "system", prompt)
         else:
@@ -65,10 +64,66 @@ async def whatsapp_webhook(request: Request):
         # Guardar el mensaje del usuario en la base de datos
         guardar_mensaje(numero_cliente, "user", texto)
 
-        # Enviar historial completo a OpenAI
+        # Configurar las funciones para Function Calling
+        functions = [
+            {
+                "name": "buscar_productos",
+                "description": "Buscar productos en WooCommerce según una palabra clave con soporte de paginación.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "palabra_clave": {
+                            "type": "string",
+                            "description": "La palabra clave para buscar productos."
+                        },
+                        "pagina": {
+                            "type": "integer",
+                            "description": "El número de la página a consultar.",
+                            "default": 1
+                        },
+                        "por_pagina": {
+                            "type": "integer",
+                            "description": "El número de productos por página.",
+                            "default": 10
+                        }
+                    },
+                    "required": ["palabra_clave"]
+                }
+            }
+        ]
+
+        # Enviar historial completo a OpenAI con funciones
         print(f"Historial enviado a OpenAI: {historial_contexto}")
-        respuesta = generar_respuesta_bruno(historial_contexto)
-        print(f"Respuesta generada: {respuesta}")
+        respuesta_openai = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=historial_contexto,
+            functions=functions,
+            function_call="auto"
+        )
+
+        # Procesar la respuesta
+        if "function_call" in respuesta_openai["choices"][0]["message"]:
+            function_name = respuesta_openai["choices"][0]["message"]["function_call"]["name"]
+            arguments = json.loads(respuesta_openai["choices"][0]["message"]["function_call"]["arguments"])
+
+            if function_name == "buscar_productos":
+                resultado = buscar_productos(**arguments)
+                historial_contexto.append({"role": "function", "name": function_name, "content": json.dumps(resultado)})
+
+                # Crear respuesta amigable para el usuario
+                if "error" in resultado:
+                    respuesta = "Hubo un error al buscar los productos. Por favor intenta de nuevo."
+                else:
+                    productos = resultado
+                    respuesta = "Aquí están los resultados:\n"
+                    for producto in productos:
+                        respuesta += f"- {producto['name']} - ${producto['price']} MXN - [Ver más]({producto['permalink']})\n"
+
+                    # Mensaje para continuar navegando por páginas
+                    if len(productos) == arguments.get("por_pagina", 10):
+                        respuesta += "\nSi quieres ver más resultados, escribe algo como: 'Muéstrame la página 2'."
+
+                historial_contexto.append({"role": "assistant", "content": respuesta})
 
         # Guardar la respuesta de Bruno en la base de datos
         guardar_mensaje(numero_cliente, "assistant", respuesta)
@@ -82,7 +137,6 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         print(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
-
 
 
 
