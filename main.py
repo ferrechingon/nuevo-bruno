@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from woocommerce_integration import buscar_productos, buscar_productos_paginados
 from db import guardar_mensaje, obtener_historial
 import logging
+import openai
 
 # Configurar logging para que envíe los mensajes a la consola
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -48,9 +49,9 @@ async def whatsapp_webhook(request: Request):
         # Verificar si no hay historial y agregar el prompt inicial
         if not historial:
             prompt = cargar_prompt()
-            print(f"Prompt cargado: {prompt}")  # Debug temporal
+            #print(f"Prompt cargado: {prompt}")  # Debug temporal
             historial_contexto = [{"role": "system", "content": prompt}]
-            print(f"Guardando mensaje con role: 'system'")
+            #print(f"Guardando mensaje con role: 'system'")
             guardar_mensaje(numero_cliente, "system", prompt)
         else:
             historial_contexto = [{"role": msg["message_role"], "content": msg["message_content"]} for msg in historial]
