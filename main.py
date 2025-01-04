@@ -110,39 +110,32 @@ async def whatsapp_webhook(request: Request):
             "temperature": 0.7
         }
 
-        response = requests.post(url, headers=headers, json=payload)
+        # Valor predeterminado para la respuesta
+        respuesta = "Lo siento, no pude procesar tu solicitud. Por favor intenta de nuevo más tarde."
 
-        respuesta = "Lo siento, no pude procesar tu solicitud. Por favor intenta de nuevo más tarde."  # Valor predeterminado
+        response = requests.post(url, headers=headers, json=payload)
 
         if response.status_code == 200:
             respuesta_openai = response.json()
+            if "choices" in respuesta_openai:
+                message = respuesta_openai["choices"][0]["message"]
+                if "function_call" in message:
+                    function_name = message["function_call"]["name"]
+                    arguments = json.loads(message["function_call"]["arguments"])
+                    if function_name == "buscar_productos":
+                        resultado = buscar_productos(**arguments)
+                        historial_contexto.append({"role": "function", "name": function_name, "content": json.dumps(resultado)})
+
+                        if "error" in resultado:
+                            respuesta = "Hubo un error al buscar los productos. Por favor intenta de nuevo."
+                        elif not resultado:
+                            respuesta = "Lo siento, no encontré productos que coincidan con tu búsqueda. Por favor, intenta con otras palabras clave o dame más detalles."
+                        else:
+                            respuesta = "Aquí están los resultados:\n"
+                            for producto in resultado:
+                                respuesta += f"- {producto['name']} - ${producto['price']} MXN - [Ver en Ferrechingón]({producto['permalink']})\n"
         else:
             print(f"Error en OpenAI API: {response.status_code}, {response.text}")
-            respuesta_openai = {"error": response.text}
-
-        # Procesar la respuesta de OpenAI
-        if "choices" in respuesta_openai:
-            message = respuesta_openai["choices"][0]["message"]
-            if "function_call" in message:
-                function_name = message["function_call"]["name"]
-                arguments = json.loads(message["function_call"]["arguments"])
-                if function_name == "buscar_productos":
-                    resultado = buscar_productos(**arguments)
-                    historial_contexto.append({"role": "function", "name": function_name, "content": json.dumps(resultado)})
-
-                    # Crear respuesta amigable para el usuario
-                    if "error" in resultado:
-                        respuesta = "Hubo un error al buscar los productos. Por favor intenta de nuevo."
-                    elif not resultado:  # Caso de resultados vacíos
-                        respuesta = "Lo siento, no encontré productos que coincidan con tu búsqueda. Por favor, intenta con otras palabras clave o dame más detalles."
-                    else:
-                        productos = resultado
-                        respuesta = "Aquí están los resultados:\n"
-                        for producto in productos:
-                            respuesta += f"- {producto['name']} - ${producto['price']} MXN - [Ver en Ferrechingón]({producto['permalink']})\n"
-
-                        if len(productos) == arguments.get("por_pagina", 10):
-                            respuesta += "\nSi quieres ver más resultados, escribe algo como: 'Muéstrame la página 2'."
 
         # Guardar la respuesta de Bruno en la base de datos
         guardar_mensaje(numero_cliente, "assistant", respuesta)
@@ -156,6 +149,7 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         print(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
+
 
 
 
