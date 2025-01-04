@@ -26,9 +26,6 @@ async def whatsapp_webhook(request: Request):
         data = await request.json()
         print(f"Datos recibidos: {data}")
 
-        # Inicializar respuesta por defecto
-        respuesta = "Lo siento, no pude procesar tu solicitud. Por favor, intenta de nuevo más tarde."
-
         # Verificar si el payload contiene mensajes
         if "messages" not in data["entry"][0]["changes"][0]["value"]:
             print("El payload no contiene mensajes. Ignorando el evento.")
@@ -52,7 +49,7 @@ async def whatsapp_webhook(request: Request):
         # Verificar si no hay historial y agregar el prompt inicial
         if not historial:
             prompt = cargar_prompt()
-            print(f"Prompt cargado: {prompt}")
+            print(f"Prompt cargado: {prompt}")  # Debug temporal
             historial_contexto = [{"role": "system", "content": prompt}]
             print(f"Guardando mensaje con role: 'system'")
             guardar_mensaje(numero_cliente, "system", prompt)
