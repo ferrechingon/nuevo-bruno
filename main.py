@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 from woocommerce_integration import buscar_productos, buscar_productos_paginados
 from db import guardar_mensaje, obtener_historial
 import logging
+import json
+
 
 
 # Configurar logging para que envíe los mensajes a la consola
