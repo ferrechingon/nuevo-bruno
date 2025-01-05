@@ -148,10 +148,7 @@ async def whatsapp_webhook(request: Request):
 
 # Función de ejemplo para enviar respuestas a WhatsApp
 def enviar_respuesta_whatsapp(numero_cliente, mensaje):
-    """
-    Envía un mensaje al cliente a través de la API de WhatsApp Business.
-    """
-    url = f"https://graph.facebook.com/v17.0/{os.getenv('WHATSAPP_PHONE_NUMBER_ID')}/messages"
+    url = f"https://graph.facebook.com/v16.0/{os.getenv('WHATSAPP_PHONE_NUMBER_ID')}/messages"
     headers = {
         "Authorization": f"Bearer {os.getenv('WHATSAPP_ACCESS_TOKEN')}",
         "Content-Type": "application/json"
@@ -159,17 +156,19 @@ def enviar_respuesta_whatsapp(numero_cliente, mensaje):
     payload = {
         "messaging_product": "whatsapp",
         "to": numero_cliente,
+        "type": "text",
         "text": {"body": mensaje}
     }
 
     try:
         response = requests.post(url, headers=headers, json=payload)
-        if response.status_code == 200:
-            logging.info(f"Mensaje enviado exitosamente a {numero_cliente}")
-        else:
+        if response.status_code != 200:
             logging.error(f"Error al enviar mensaje a WhatsApp: {response.status_code}, {response.text}")
+        else:
+            logging.info("Respuesta enviada exitosamente a WhatsApp.")
     except Exception as e:
-        logging.error(f"Error al enviar mensaje a WhatsApp: {e}")PI de WhatsApp
+        logging.error(f"Error al intentar enviar mensaje a WhatsApp: {e}")
+
 
 if __name__ == "__main__":
     import uvicorn
