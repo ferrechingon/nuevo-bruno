@@ -150,11 +150,11 @@ async def whatsapp_webhook(request: Request):
 def enviar_respuesta_whatsapp(numero_cliente, mensaje):
     logging.info(f"Enviando respuesta a {numero_cliente}: {mensaje}")
     # Implementa aquí la lógica para enviar mensajes a través de la API de WhatsApp
-    whatsapp_phone_number_id = os.getenv("WHATSAPP_API_TOKEN")
-    access_token = os.getenv("WHATSAPP_ACCESS_TOKEN")
+    whatsapp_phone_number_id = os.getenv("WHATSAPP_PHONE_ID")
+    access_token = os.getenv("WHATSAPP_API_TOKEN")
 
     if not whatsapp_phone_number_id or not access_token:
-        logging.error("WHATSAPP_PHONE_NUMBER_ID o WHATSAPP_ACCESS_TOKEN no están configurados.")
+        logging.error("WHATSAPP_PHONE_ID o WHATSAPP_API_TOKEN no están configurados.")
         return
 
     url = f"https://graph.facebook.com/v16.0/{whatsapp_phone_number_id}/messages"
