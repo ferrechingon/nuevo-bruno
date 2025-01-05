@@ -150,7 +150,7 @@ async def whatsapp_webhook(request: Request):
 def enviar_respuesta_whatsapp(numero_cliente, mensaje):
     url = f"https://graph.facebook.com/v16.0/{os.getenv('WHATSAPP_PHONE_NUMBER_ID')}/messages"
     headers = {
-        "Authorization": f"Bearer {os.getenv('WHATSAPP_ACCESS_TOKEN')}",
+        "Authorization": f"Bearer {os.getenv('WHATSAPP_API_TOKEN')}",
         "Content-Type": "application/json"
     }
     payload = {
