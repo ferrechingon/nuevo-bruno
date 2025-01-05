@@ -39,6 +39,7 @@ def truncar_historial(historial, max_tokens):
 @app.post("/webhook/")
 async def whatsapp_webhook(request: Request):
     try:
+        # Obtener datos del request
         data = await request.json()
         logging.info(f"Datos recibidos: {data}")
 
@@ -65,11 +66,6 @@ async def whatsapp_webhook(request: Request):
         # Verificar si no hay historial y agregar el prompt inicial
         if not historial:
             prompt = cargar_prompt()
-            if not prompt:
-                logging.error("No se pudo cargar el prompt inicial.")
-                return {"error": "No se pudo cargar el prompt inicial."}
-
-            logging.info(f"Prompt cargado: {prompt}")
             historial_contexto = [{"role": "system", "content": prompt}]
             guardar_mensaje(numero_cliente, "system", prompt)
         else:
@@ -84,51 +80,78 @@ async def whatsapp_webhook(request: Request):
         # Guardar el mensaje del usuario en la base de datos
         guardar_mensaje(numero_cliente, "user", texto)
 
-        # Construir el payload para la llamada a OpenAI
-        payload = {
-            "model": "gpt-4-0613",
-            "messages": historial_contexto,
-            "functions": [
-                {
-                    "name": "buscar_productos",
-                    "description": "Busca productos en el catálogo de WooCommerce según palabras clave proporcionadas.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {"type": "string", "description": "Palabras clave para buscar productos."},
-                            "pagina": {"type": "integer", "description": "Número de la página a consultar."},
-                            "por_pagina": {"type": "integer", "description": "Cantidad de resultados por página."}
+        # Configurar las funciones para Function Calling
+        functions = [
+            {
+                "name": "buscar_productos",
+                "description": "Buscar productos en WooCommerce según una palabra clave con soporte de paginación.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "palabra_clave": {
+                            "type": "string",
+                            "description": "La palabra clave para buscar productos."
                         },
-                        "required": ["query"]
-                    }
+                        "pagina": {
+                            "type": "integer",
+                            "description": "El número de la página a consultar.",
+                            "default": 1
+                        },
+                        "por_pagina": {
+                            "type": "integer",
+                            "description": "El número de productos por página.",
+                            "default": 10
+                        }
+                    },
+                    "required": ["palabra_clave"]
                 }
-            ],
-            "function_call": "auto"
-        }
+            }
+        ]
 
-        # Llamar a la API de OpenAI
+        # Llamada a OpenAI usando requests
+        url = "https://api.openai.com/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
             "Content-Type": "application/json"
         }
+        payload = {
+            "model": "gpt-4",
+            "messages": historial_contexto,
+            "functions": functions,
+            "function_call": "auto",
+            "max_tokens": 500,
+            "temperature": 0.7
+        }
 
-        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload)
 
         if response.status_code != 200:
-            logging.error(f"Error al llamar a OpenAI: {response.status_code}, {response.text}")
-            respuesta = "Lo siento, no pude procesar tu solicitud. Por favor intenta de nuevo más tarde."
+            logging.error(f"Error en OpenAI API: {response.status_code}, {response.text}")
+            respuesta = "Lo siento, no pude procesar tu solicitud. Por favor, intenta de nuevo más tarde."
         else:
-            respuesta_json = response.json()
-            choice = respuesta_json.get("choices", [{}])[0].get("message", {})
-            if choice.get("function_call"):
-                function_name = choice["function_call"]["name"]
-                function_args = json.loads(choice["function_call"]["arguments"])
+            respuesta_openai = response.json()
+            message = respuesta_openai["choices"][0]["message"]
+
+            # Manejo de invocación de funciones
+            if "function_call" in message:
+                function_name = message["function_call"]["name"]
+                arguments = json.loads(message["function_call"]["arguments"])
                 if function_name == "buscar_productos":
-                    respuesta = buscar_productos_paginados(function_args["query"], function_args.get("pagina", 1), function_args.get("por_pagina", 5))
-                else:
-                    respuesta = "Lo siento, no pude procesar tu solicitud."
+                    resultado = buscar_productos(**arguments)
+                    historial_contexto.append({"role": "function", "name": function_name, "content": json.dumps(resultado)})
+
+                    if "error" in resultado:
+                        respuesta = "Hubo un error al buscar los productos. Por favor intenta de nuevo."
+                    else:
+                        productos = resultado
+                        respuesta = "Aquí están los resultados:\n"
+                        for producto in productos:
+                            respuesta += f"- {producto['name']} - ${producto['price']} MXN - [Ver más]({producto['permalink']})\n"
+
+                        if len(productos) == arguments.get("por_pagina", 10):
+                            respuesta += "\nSi quieres ver más resultados, escribe algo como: 'Muéstrame la página 2'."
             else:
-                respuesta = choice.get("content", "Lo siento, no pude procesar tu solicitud.")
+                respuesta = message.get("content", "Lo siento, no pude procesar tu solicitud. Por favor, intenta de nuevo más tarde.")
 
         # Guardar la respuesta de Bruno en la base de datos
         guardar_mensaje(numero_cliente, "assistant", respuesta)
@@ -136,14 +159,13 @@ async def whatsapp_webhook(request: Request):
         # Enviar la respuesta al usuario por WhatsApp
         enviar_respuesta_whatsapp(numero_cliente, respuesta)
 
-        return {"status": "success"}
-
     except KeyError as e:
         logging.error(f"Error de clave en los datos recibidos: {e}")
         return {"error": "Estructura inesperada en el payload"}
     except Exception as e:
         logging.error(f"Error inesperado: {e}")
         return {"error": "Error en el servidor"}
+
 
 # Función de ejemplo para enviar respuestas a WhatsApp
 def enviar_respuesta_whatsapp(numero_cliente, mensaje):
